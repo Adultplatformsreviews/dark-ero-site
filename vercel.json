@@ -1,4 +1,8 @@
 {
+  "redirects": [
+    { "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)", "destination": "/", "permanent": true },
+    { "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/:path*", "destination": "/:path*/", "permanent": true }
+  ],
   "rewrites": [
     {
       "source": "/((?!sitemap.xml|robots.txt|sw.js|assets/).*)",
