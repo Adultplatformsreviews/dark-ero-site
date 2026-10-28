@@ -1,6 +1,21 @@
 {
   "redirects": [
     {
+      "source": "/category/creators",
+      "destination": "/category/sell-feet-pics/",
+      "statusCode": 301
+    },
+    {
+      "source": "/category/creators/",
+      "destination": "/category/sell-feet-pics/",
+      "statusCode": 301
+    },
+    {
+      "source": "/category/creators/:path*",
+      "destination": "/category/sell-feet-pics/",
+      "statusCode": 301
+    },
+    {
       "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)",
       "destination": "/",
       "permanent": true
