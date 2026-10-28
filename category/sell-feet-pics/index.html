@@ -355,7 +355,9 @@ html[dir=rtl] .rank-list .n{text-align:left}
 .sfp .post-card p{color:var(--text);opacity:.86}
 .sfp .post-card h3{margin-top:0}
 .sfp .post-card .more{color:var(--accent-2)}
-.sfp .vip-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+.sfp .vip-grid{grid-template-columns:repeat(3,1fr)}
+@media(max-width:820px){.sfp .vip-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.sfp .vip-grid{grid-template-columns:1fr}}
 .sfp .vip-card{border-color:#E4DEF2;background:linear-gradient(180deg,#FFFFFF 0%,#F8F5FF 100%)}
 .sfp .vip-card:hover{border-color:#7C3AED;box-shadow:0 12px 34px rgba(109,40,217,.14)}
 .sfp .vip-card .logo-badge{background:linear-gradient(135deg,#7C3AED,#6D28D9);color:#fff}
