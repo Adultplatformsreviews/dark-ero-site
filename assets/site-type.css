@@ -1,0 +1,91 @@
+/* Dark-Ero type lock
+   One stack on every page. Body and UI: Manrope.
+   Display (wordmark, heroes, article titles): Instrument Serif.
+   Instrument Serif ships at weight 400 only — never faux-bold it.
+*/
+:root{
+  --serif:'Instrument Serif',Georgia,'Times New Roman',serif;
+  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+}
+html,body{
+  font-family:var(--sans);
+  color:var(--text,#1C1630);
+}
+button,input,select,textarea{font-family:inherit}
+.brand,
+.de-head .brand,
+.de-foot .brand,
+.de-foot-top .brand,
+.hero h1,
+.hero2 h1,
+.page-head h1,
+.pg-hero h1,
+.section-head h2,
+.prose h2,
+.profile-head h1,
+.cta-band h2,
+.home-intro h1,
+.topbar-copy h1,
+.gate-card h2,
+.glance h2,
+.takeaways h2,
+.picks-h h2,
+.pick-name,
+.cta2 h2,
+.prose .cta2 h2,
+article .cta2 h2,
+.vip-guide-box h2,
+.vip-box h2,
+.vip-num,
+.fee-compare h2,
+.vip-guides h2,
+.related-cats h2,
+.info-h,
+.info-steps .num,
+.info-steps .st,
+.card-t,
+.card .sv,
+.layout h2,
+.layout h3,
+.layout .site-card h3,
+.logo-badge,
+.row .rank,
+.faq .q{
+  font-family:var(--serif);
+  font-weight:400;
+  font-synthesis:none;
+}
+.pg-hero h1{color:#fff}
+.pg-hero .lede{color:#f4efff}
+.prose p,.prose li{color:var(--text,#1C1630)}
+main .glance,
+section.takeaways{
+  background:var(--card,#fff);
+  color:var(--text,#1C1630);
+}
+main .glance h2,
+section.takeaways h2{color:#6d28d9}
+.g-top,.g-top b,.g-top p{color:#fff}
+.vip-rich .vip-thumb{
+  display:block;
+  margin:0 0 14px;
+  border-radius:12px;
+  overflow:hidden;
+  aspect-ratio:16/8;
+  background:#140c24;
+}
+.vip-rich .vip-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+/* Directory column scroller keeps the UI face and its bold labels. */
+.tpd-col,
+.tpd-dir,
+.tpd-see,
+.tpd-name,
+.tpd-host{
+  font-family:var(--sans);
+}
+.tpd-col-h h2,
+.tpd-dir-head h2{
+  font-family:var(--sans);
+  font-weight:800;
+  font-synthesis:weight;
+}
