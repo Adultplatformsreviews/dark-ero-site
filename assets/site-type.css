@@ -72,7 +72,7 @@ section.takeaways h2{color:#6d28d9}
   color:#fff;
   background-color:#140c24;
   background-size:cover;
-  background-position:center;
+  background-position:right center;
   background-repeat:no-repeat;
 }
 .vip-rich::before{
@@ -83,11 +83,19 @@ section.takeaways h2{color:#6d28d9}
   pointer-events:none;
   background:linear-gradient(180deg,rgba(20,12,36,.42) 0%,rgba(20,12,36,.72) 46%,rgba(8,5,16,.92) 100%);
 }
-.vip-rich>*{position:relative;z-index:1}
+.vip-rich::after{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:12%;
+  z-index:1;
+  pointer-events:none;
+  background:linear-gradient(90deg,#140c24,transparent);
+}
+.vip-rich>*{position:relative;z-index:2}
+.vip-rich h3{margin:0}
 .vip-rich h3 a{color:#fff}
 .vip-rich h3 a:hover{color:#e9d5ff}
-.vip-rich p{color:#f4efff}
-.vip-num{color:#f5f3ff}
 .pg-hero .cover{margin:22px auto 0;max-width:760px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 16px 40px rgba(0,0,0,.28)}
 .pg-hero .cover img{width:100%;height:auto;display:block;max-height:460px;object-fit:cover;background:#1b1430}
 /* Directory column scroller keeps the UI face and its bold labels. */
