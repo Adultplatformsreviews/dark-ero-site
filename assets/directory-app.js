@@ -136,11 +136,12 @@ function bindGate(){
   if(n&&!n.dataset.bound){n.dataset.bound="1";n.onclick=function(){location.href="https://www.google.com"}}
   if(document.documentElement.getAttribute("data-age")!=="ok")document.body.style.overflow="hidden";
 }
+function decodeEntities(s){var el=document.createElement("textarea");el.innerHTML=s;return el.value}
 function present(d,k){
   if(!(shown===null&&k==="/")){if(shown!==k)app.innerHTML=d.body}
   shown=k;
   document.documentElement.setAttribute("data-painted","1");
-  if(d.title)document.title=d.title;
+  if(d.title)document.title=decodeEntities(d.title);
   var dm=document.querySelector('meta[name="description"]');
   if(dm&&d.desc)dm.setAttribute("content",d.desc);
   bindGate();
@@ -163,6 +164,7 @@ function render(){
     return;
   }
   if(PAGE_INDEX[k]&&k!=="/"){
+    if(PAGE_INDEX[k].title)document.title=decodeEntities(PAGE_INDEX[k].title);
     loadPage(k,function(d){
       if(gen!==renderGen)return;
       PAGES[k]=d;
