@@ -1,3 +1,4 @@
 User-agent: *
 Allow: /
 Sitemap: https://www.dark-ero.store/sitemap.xml
+Agentmap: https://www.dark-ero.store/.well-known/ard.json
