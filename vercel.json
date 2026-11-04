@@ -1,5 +1,28 @@
 {
+  "trailingSlash": true,
+  "cleanUrls": true,
   "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "dark-ero.store"
+        }
+      ],
+      "destination": "https://www.dark-ero.store/$1",
+      "permanent": true
+    },
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)/index.html",
+      "destination": "/$1/",
+      "permanent": true
+    },
     {
       "source": "/category/creators",
       "destination": "/category/sell-feet-pics/",
@@ -16,14 +39,23 @@
       "permanent": true
     },
     {
+      "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/",
+      "destination": "/",
+      "permanent": true
+    },
+    {
       "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/:path*",
-      "destination": "/:path*/",
+      "destination": "/:path*",
       "permanent": true
     }
   ],
   "rewrites": [
     {
-      "source": "/((?!sitemap.xml|robots.txt|llms.txt|sw.js|assets/|.well-known/).*)",
+      "source": "/category/:slug",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/category/:slug/",
       "destination": "/index.html"
     }
   ],
