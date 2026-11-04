@@ -65,14 +65,38 @@ section.takeaways{
 main .glance h2,
 section.takeaways h2{color:#6d28d9}
 .g-top,.g-top b,.g-top p{color:#fff}
-.vip-rich{
+.vip-rich.vip-rich{
   color:#fff;
-  background:#1b1430;
-  background-image:none;
+  border:1px solid rgba(214,178,106,.48);
+  border-radius:18px;
+  background-color:#120b1e;
+  background-image:
+    radial-gradient(120% 90% at 0% 0%, rgba(139,92,246,.38), transparent 52%),
+    linear-gradient(165deg, #321c56 0%, #1a102c 46%, #0c0914 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,236,196,.22),
+    0 16px 36px rgba(18,8,32,.32);
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
-.vip-rich h3{margin:0}
-.vip-rich h3 a{color:#fff}
-.vip-rich h3 a:hover{color:#e9d5ff}
+.vip-rich.vip-rich:hover{
+  border-color:rgba(232,201,122,.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255,236,196,.34),
+    0 20px 42px rgba(88,40,150,.34);
+  transform:translateY(-2px);
+}
+.vip-rich.vip-rich h3{
+  margin:0;
+  font-family:var(--serif);
+  font-weight:400;
+  font-synthesis:none;
+  letter-spacing:-.01em;
+}
+.vip-rich.vip-rich h3 a{color:#fff;text-decoration:none;background:transparent}
+.vip-rich.vip-rich h3 a:hover{color:#f6e7c1;text-decoration:none;background:transparent}
+@media (prefers-reduced-motion:reduce){
+  .vip-rich.vip-rich:hover{transform:none}
+}
 .pg-hero .cover{margin:22px auto 0;max-width:760px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 16px 40px rgba(0,0,0,.28)}
 .pg-hero .cover img{width:100%;height:auto;display:block;max-height:460px;object-fit:cover;background:#1b1430}
 /* Directory column scroller keeps the UI face and its bold labels. */
