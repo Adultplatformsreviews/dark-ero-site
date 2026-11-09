@@ -547,6 +547,8 @@ details.faq>summary::after{display:none!important}
 .pg-hero{background:radial-gradient(800px 380px at 12% -20%,rgba(124,58,237,.42),transparent 60%),radial-gradient(700px 360px at 105% 120%,rgba(109,40,217,.42),transparent 60%),#140c24;color:#fff;border-radius:0 0 28px 28px}
 .pg-hero .in{max-width:860px;margin:0 auto;padding:42px 22px 50px}
 .pg-hero h1{font-family:var(--serif);font-weight:400;font-synthesis:none;font-size:clamp(32px,4.6vw,48px);line-height:1.08;margin:0;letter-spacing:-.02em;color:#fff}
+.pg-hero .hero-eye{margin:0 0 8px;text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:800;color:#e9d5ff}
+.pg-hero .hero-eye a{color:#f5e9ff;text-decoration:none}
 .pg-hero .lede{color:#f1eaf8;font-size:18px;margin:14px 0 0;max-width:740px}
 .pg-hero .pills{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
 .pg-hero .pills span{background:rgba(255,255,255,.14)!important;color:#fff!important;border:1px solid rgba(255,255,255,.4)!important;border-radius:999px;padding:3px 10px;font-size:12.5px}
