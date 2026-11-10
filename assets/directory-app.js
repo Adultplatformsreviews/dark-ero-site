@@ -53,70 +53,10 @@ function hydrateLogos(root){
   nodes.forEach(function(n){if(!n.dataset.watch){n.dataset.watch="1";io.observe(n)}});
 }
 function injectTpdCols(){
-  if(!window.DE_DIR||document.getElementById("tpd-more"))return;
-  var main=document.querySelector("main.dir-home");
-  if(!main)return;
-  var cols=DE_DIR.cats.filter(function(c){return c.home&&c.sites&&c.sites.length&&!document.getElementById("cat-"+c.slug)});
-  if(!cols.length)return;
-  var slot=document.getElementById("tpd-more-slot");
-  var head=document.createElement("div");
-  head.className="container tpd-dir-head";
-  head.innerHTML="<h2>More category lists</h2><p>Each list is its own category. About 15 sites show at a time. Scroll the column, or open the full page.</p>";
-  var wrap=document.createElement("div");
-  wrap.className="container tpd-cols";
-  wrap.id="tpd-more";
-  if(slot&&slot.parentNode)slot.replaceWith(head);else main.appendChild(head);
-  head.after(wrap);
-  var i=0,BATCH=8,io=null;
-  function more(){
-    var sent=document.getElementById("tpd-batch-sentinel");
-    var end=Math.min(i+BATCH,cols.length);
-    var frag=document.createDocumentFragment();
-    for(;i<end;i++){
-      var sec=document.createElement("section");
-      sec.className="tpd-col";
-      sec.id="cat-"+cols[i].slug;
-      sec.innerHTML=tpdColumn(cols[i]);
-      frag.appendChild(sec);
-    }
-    if(sent)wrap.insertBefore(frag,sent);else wrap.appendChild(frag);
-    dressScrollers();
-    hydrateLogos(wrap);
-    if(i>=cols.length){if(sent)sent.remove();if(io)io.disconnect();return}
-    if(!sent){
-      sent=document.createElement("div");
-      sent.id="tpd-batch-sentinel";
-      sent.className="tpd-more-sentinel";
-      wrap.appendChild(sent);
-      if(!("IntersectionObserver" in window)){more();return}
-      io=new IntersectionObserver(function(ents){
-        if(!ents.some(function(e){return e.isIntersecting}))return;
-        io.unobserve(sent);
-        more();
-        var again=document.getElementById("tpd-batch-sentinel");
-        if(again)requestAnimationFrame(function(){io.observe(again)});
-      },{rootMargin:"600px 0px"});
-      io.observe(sent);
-    }
-  }
-  more();
+  return;
 }
 function armMoreCols(){
-  if(document.documentElement.getAttribute("data-age")!=="ok")return;
-  if(document.getElementById("tpd-more")||document.getElementById("tpd-more-slot"))return;
-  var main=document.querySelector("main.dir-home");
-  if(!main)return;
-  var slot=document.createElement("div");
-  slot.id="tpd-more-slot";
-  main.appendChild(slot);
-  function start(){loadDir(function(){injectTpdCols()})}
-  if(!("IntersectionObserver" in window)){start();return}
-  var io=new IntersectionObserver(function(ents){
-    if(!ents.some(function(e){return e.isIntersecting}))return;
-    io.disconnect();
-    start();
-  },{rootMargin:"800px 0px"});
-  io.observe(slot);
+  return;
 }
 function revealDirectory(){
   document.documentElement.setAttribute("data-age","ok");
@@ -192,7 +132,23 @@ ai:[{url:"/ablx-review/",title:"ABLX Review 2026: Credit Prices, Deepfake Risk a
 };
 function categoryGuidesHtml(slug){var list=CATEGORY_GUIDES[slug];if(!list||!list.length)return "";var cards="";list.forEach(function(g){cards+='<article class="vip-rich"><h3><a href="'+escHtml(g.url)+'">'+escHtml(g.title)+'</a></h3></article>'});return '<section class="vip-guides cat-guides" aria-labelledby="cat-guides-'+slug+'"><div class="section-head"><h2 id="cat-guides-'+slug+'">Guides</h2></div><div class="vip-grid">'+cards+'</div></section>'}
 function withCategoryGuides(k,body){var m=/^\/category\/([a-z0-9-]+)\/$/.exec(k);if(!m||!CATEGORY_GUIDES[m[1]]||body.indexOf('class="cat-guides"')!==-1)return body;var html=categoryGuidesHtml(m[1]);var needle='<main class="layout layout-wide"><article>';var i=body.indexOf(needle);if(i<0)return body;var at=i+needle.length;return body.slice(0,at)+html+body.slice(at)}
-function renderDeCat(c){var ch=homeParts();var cards="";c.sites.forEach(function(s){var u=escHtml(s.url);cards+='<article class="site-card" data-card data-pricing="free" data-state="pending"><div class="top"><div class="logo-badge"><img class="logo-fav" src="https://www.google.com/s2/favicons?domain='+encodeURIComponent(s.host)+'&sz=32" alt="" width="26" height="26" loading="lazy" decoding="async"></div><div><h3><a href="'+u+'" target="_blank" rel="noopener noreferrer nofollow">'+escHtml(s.name)+'</a></h3><div class="cat"><a href="/category/'+c.slug+'/">'+escHtml(c.title)+'</a></div></div></div><p>Official website. Direct link only.</p><div class="card-foot"><span class="review-state pending">Direct link</span><a class="btn btn-sm btn-primary" href="'+u+'" target="_blank" rel="noopener noreferrer nofollow">Visit site →</a></div></article>'});var grid=c.sites.length?cards:'<p class="tpd-empty">'+escHtml(c.blurb)+'</p>';return ch.head+'<section class="pg-hero"><div class="in"><p class="hero-eye">'+c.emoji+' Directory</p><h1>'+escHtml(c.title)+'</h1><p class="lede">'+escHtml(c.blurb)+'</p></div></section><main class="layout layout-wide"><article>'+categoryGuidesHtml(c.slug)+'<div class="card-grid">'+grid+'</div></article></main>'+ch.foot}
+function homeColumns(){
+  if(homeColumns.list)return homeColumns.list;
+  var b=(PAGES["/"]&&PAGES["/"].body)||"";
+  var list=[],re=/<section\b[^>]*class="tpd-col"[^>]*>[\s\S]*?<\/section>/g,m;
+  while((m=re.exec(b))){
+    var id=/id="cat-([a-z0-9-]+)"/.exec(m[0]);
+    if(id)list.push({slug:id[1],html:m[0]});
+  }
+  homeColumns.list=list;
+  return list;
+}
+function otherColumnsHtml(slug){
+  var parts=homeColumns().filter(function(c){return c.slug!==slug}).map(function(c){return c.html});
+  if(!parts.length)return "";
+  return '<div class="container tpd-cols tpd-more-block" id="related-categories-1">'+parts.join("")+"</div>";
+}
+function renderDeCat(c){var ch=homeParts();var cards="";c.sites.forEach(function(s){var u=escHtml(s.url);cards+='<article class="site-card" data-card data-pricing="free" data-state="pending"><div class="top"><div class="logo-badge"><img class="logo-fav" src="https://www.google.com/s2/favicons?domain='+encodeURIComponent(s.host)+'&sz=32" alt="" width="26" height="26" loading="lazy" decoding="async"></div><div><h3><a href="'+u+'" target="_blank" rel="noopener noreferrer nofollow">'+escHtml(s.name)+'</a></h3><div class="cat"><a href="/category/'+c.slug+'/">'+escHtml(c.title)+'</a></div></div></div><p>Official website. Direct link only.</p><div class="card-foot"><span class="review-state pending">Direct link</span><a class="btn btn-sm btn-primary" href="'+u+'" target="_blank" rel="noopener noreferrer nofollow">Visit site →</a></div></article>'});var grid=c.sites.length?cards:'<p class="tpd-empty">'+escHtml(c.blurb)+'</p>';return ch.head+'<section class="pg-hero"><div class="in"><p class="hero-eye">'+c.emoji+' Directory</p><h1>'+escHtml(c.title)+'</h1><p class="lede">'+escHtml(c.blurb)+'</p></div></section><main class="layout layout-wide"><article>'+categoryGuidesHtml(c.slug)+'<div class="card-grid">'+grid+'</div></article></main>'+otherColumnsHtml(c.slug)+ch.foot}
 function injectTiles(){var path=location.pathname;if(!path.endsWith("/"))path+="/";if(path!=="/categories/")return;var grid=document.querySelector(".tile-grid");if(!grid||!window.DE_DIR||grid.getAttribute("data-tpd")==="1")return;grid.setAttribute("data-tpd","1");DE_DIR.cats.forEach(function(c){var href="/category/"+c.slug+"/";if(grid.querySelector('a[href="'+href+'"]'))return;var a=document.createElement("a");a.className="tile";a.href=href;a.innerHTML='<div class="ico">'+c.emoji+'</div><h3></h3><div class="count"></div>';a.querySelector("h3").textContent=c.title;a.querySelector(".count").textContent=c.sites.length?(c.sites.length+" official sites"):"Directory";grid.appendChild(a)})}
 var app=document.getElementById("app");
 function pathKey(){var p=normPath();if(deCat(p))return p;if((p in PAGES)||PAGE_INDEX[p])return p;return "/"}
