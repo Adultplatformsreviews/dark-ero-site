@@ -3,7 +3,7 @@
    Rules are gated on html[data-premium] so the directory
    homepage (index.html without that attribute) is unchanged.
    Palette is the existing violet / paper / charcoal set.
-   One face: Manrope. Instrument Serif stays on .vip-rich titles. */
+   One family: Bricolage Grotesque. */
 html[data-premium]{
   --r:16px;
   --r-sm:12px;
@@ -11,7 +11,7 @@ html[data-premium]{
   --shadow-lg:0 18px 44px rgba(49,24,92,.10);
 }
 html[data-premium] body{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-size:17px;
   line-height:1.7;
   letter-spacing:-.011em;
@@ -25,7 +25,7 @@ html[data-premium] input,
 html[data-premium] select,
 html[data-premium] textarea{font-family:inherit}
 
-/* One family. Serif remains the vip-card exception, restated at the end. */
+/* One family: Bricolage Grotesque. */
 html[data-premium] :is(
   .brand,
   .de-head .brand,
@@ -70,7 +70,7 @@ html[data-premium] :is(
   .post-card h3,
   .tile h3
 ){
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-synthesis:none;
 }
 
@@ -239,7 +239,7 @@ html[data-premium] .prose h2.num{
   margin:64px 0 16px;
 }
 html[data-premium] .prose h2.num::before{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   border-radius:10px;
   margin-top:3px;
   padding:7px 8px;
@@ -409,7 +409,7 @@ html[data-premium] .cta2{
 html[data-premium] .cta2 h2,
 html[data-premium] .prose .cta2 h2,
 html[data-premium] article .cta2 h2{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:700;
   letter-spacing:-.03em;
 }
@@ -699,7 +699,7 @@ html[data-premium] .totop{
   box-shadow:0 10px 24px rgba(124,58,237,.28);
 }
 
-/* vip cards keep the existing luxury treatment: violet-charcoal, gold edge, serif title. */
+/* vip cards keep the existing luxury treatment: violet-charcoal and a gold edge. */
 html[data-premium] .vip-rich.vip-rich{
   color:#fff;
   border:1px solid rgba(214,178,106,.48);
@@ -721,7 +721,7 @@ html[data-premium] .vip-rich.vip-rich:hover{
 }
 html[data-premium] .vip-rich.vip-rich h3{
   margin:0;
-  font-family:var(--serif);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:400;
   font-synthesis:none;
   letter-spacing:-.01em;
@@ -731,7 +731,7 @@ html[data-premium] .vip-rich.vip-rich h3 a{color:#fff;text-decoration:none;backg
 html[data-premium] .vip-rich.vip-rich h3 a:hover{color:#f6e7c1;text-decoration:none;background:transparent}
 html[data-premium] .vip-rich.vip-rich p{
   color:#eadcc0;
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:450;
   font-size:14px;
   line-height:1.5;
