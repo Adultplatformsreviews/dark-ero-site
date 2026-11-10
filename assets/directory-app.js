@@ -77,9 +77,22 @@ function bindGate(){
   if(document.documentElement.getAttribute("data-age")!=="ok")document.body.style.overflow="hidden";
 }
 function decodeEntities(s){var el=document.createElement("textarea");el.innerHTML=s;return el.value}
+function syncPremium(){
+  var sub=normPath()!=="/"||shown==="search";
+  if(sub){
+    document.documentElement.setAttribute("data-premium","");
+    if(!document.querySelector('link[href="/assets/premium.css"]')){
+      var l=document.createElement("link");
+      l.rel="stylesheet";
+      l.href="/assets/premium.css";
+      document.head.appendChild(l);
+    }
+  }else document.documentElement.removeAttribute("data-premium");
+}
 function present(d,k){
   if(!(shown===null&&k==="/")){if(shown!==k)app.innerHTML=d.body}
   shown=k;
+  syncPremium();
   document.documentElement.setAttribute("data-painted","1");
   if(d.title)document.title=decodeEntities(d.title);
   var dm=document.querySelector('meta[name="description"]');
@@ -174,6 +187,7 @@ if(window.DE_DIR){DE_DIR.cats.forEach(function(c){if(!c.sites||!c.sites.length)r
 var rows="";res.slice(0,60).forEach(function(r){rows+='<a class="row" href="'+r[0]+'"><div class="body"><b>'+escHtml(r[1])+'</b></div><div class="meta">Open &rarr;</div></a>'});
 var safe=escHtml(q);
 shown="search";
+syncPremium();
 app.innerHTML=(CHROME.h||"")+'<section class="pg-hero"><div class="in"><p class="hero-eye">Search</p><h1>Results for &quot;'+safe+'&quot;</h1><p class="lede">'+res.length+' matching pages inside Dark-Ero.</p></div></section><main class="layout"><article><div class="rows">'+rows+'</div></article></main>'+(CHROME.f||"");
 if(!keepUrl)history.pushState({},"","/?q="+encodeURIComponent(q));
 document.title="Search — Dark-Ero";
