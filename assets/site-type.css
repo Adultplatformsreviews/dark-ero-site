@@ -1,14 +1,12 @@
 /* Dark-Ero type lock
-   One stack on every page. Body and UI: Manrope.
-   Display (wordmark, heroes, article titles): Instrument Serif.
-   Instrument Serif ships at weight 400 only — never faux-bold it.
+   One family on every page: Bricolage Grotesque.
 */
 :root{
-  --serif:'Instrument Serif',Georgia,'Times New Roman',serif;
-  --sans:'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --serif:'Bricolage Grotesque', system-ui, sans-serif;
+  --sans:'Bricolage Grotesque', system-ui, sans-serif;
 }
 html,body{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   color:var(--text,#1C1630);
 }
 button,input,select,textarea{font-family:inherit}
@@ -50,7 +48,7 @@ article .cta2 h2,
 .logo-badge,
 .row .rank,
 .faq .q{
-  font-family:var(--serif);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:400;
   font-synthesis:none;
 }
@@ -87,7 +85,7 @@ section.takeaways h2{color:#6d28d9}
 }
 .vip-rich.vip-rich h3{
   margin:0;
-  font-family:var(--serif);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:400;
   font-synthesis:none;
   letter-spacing:-.01em;
@@ -105,16 +103,16 @@ section.takeaways h2{color:#6d28d9}
 .tpd-see,
 .tpd-name,
 .tpd-host{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
 }
 .tpd-col-h h2,
 .tpd-dir-head h2{
-  font-family:var(--sans);
+  font-family:'Bricolage Grotesque', system-ui, sans-serif;
   font-weight:800;
   font-synthesis:weight;
 }
 
-/* Same centered TPD columns as the homepage. One face: Manrope. */
+/* Same centered TPD columns as the homepage. One family: Bricolage Grotesque. */
 .container.tpd-cols{width:min(100%,var(--maxw,1200px));margin-left:auto;margin-right:auto}
 .tpd-cols{display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:14px;width:100%;padding-top:16px;padding-bottom:28px}
 .tpd-more-block{margin-top:8px;margin-bottom:36px}
@@ -123,24 +121,24 @@ section.takeaways h2{color:#6d28d9}
 .tpd-col:nth-child(4n+3){border-top-color:#8B5CF6}
 .tpd-col:nth-child(4n){border-top-color:#5B21B6}
 .tpd-col-h{padding:14px 14px 8px}
-.tpd-col .tpd-col-h h2{margin:0 0 6px;font-family:var(--sans);font-size:13.5px;font-weight:800;font-synthesis:weight;letter-spacing:.04em;text-transform:uppercase;line-height:1.25;padding:0}
+.tpd-col .tpd-col-h h2{margin:0 0 6px;font-family:'Bricolage Grotesque', system-ui, sans-serif;font-size:13.5px;font-weight:800;font-synthesis:weight;letter-spacing:.04em;text-transform:uppercase;line-height:1.25;padding:0}
 .tpd-col .tpd-col-h h2::after{content:none}
-.tpd-col .tpd-col-h h2 a{color:#6D28D9;text-decoration:none;font-family:var(--sans)}
+.tpd-col .tpd-col-h h2 a{color:#6D28D9;text-decoration:none;font-family:'Bricolage Grotesque', system-ui, sans-serif}
 .tpd-col .tpd-col-h h2 a:hover{color:#7C3AED}
-.tpd-col .tpd-col-h p{margin:0;color:var(--muted);font-family:var(--sans);font-size:12.5px;line-height:1.45;font-weight:400}
+.tpd-col .tpd-col-h p{margin:0;color:var(--muted);font-family:'Bricolage Grotesque', system-ui, sans-serif;font-size:12.5px;line-height:1.45;font-weight:400}
 .tpd-list{list-style:none;counter-reset:tpd;margin:0;padding:0 14px 0 6px;flex:1 1 auto;min-height:0;max-height:518.90625px;overflow-x:hidden;overflow-y:auto;scrollbar-width:none}
 .tpd-list::-webkit-scrollbar{width:0;height:0;display:none}
 .tpd-scroll{position:absolute;right:8px;width:8px;border-radius:8px;background:#efeaf8;z-index:2}
 .tpd-scroll i{display:block;width:100%;border-radius:8px;background:#7c3aed;min-height:28px;cursor:pointer}
 .tpd-list li{counter-increment:tpd;border-top:1px solid var(--line-soft)}
-.tpd-list a{display:flex;align-items:center;gap:8px;padding:6px 6px;color:var(--text);text-decoration:none;font-family:var(--sans);font-size:13.5px;font-weight:600;min-width:0}
+.tpd-list a{display:flex;align-items:center;gap:8px;padding:6px 6px;color:var(--text);text-decoration:none;font-family:'Bricolage Grotesque', system-ui, sans-serif;font-size:13.5px;font-weight:600;min-width:0}
 .tpd-list a::before{content:counter(tpd);min-width:1.5em;color:var(--dim);font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;flex:none}
 .tpd-list a:hover{color:#6D28D9;background:var(--bg-2)}
 .tpd-list img,.tpd-list .dir-mark{width:16px;height:16px;max-width:16px;border-radius:3px;flex:none;object-fit:contain}
 .tpd-list img{height:auto;aspect-ratio:auto;display:block}
 .tpd-list .dir-mark{display:block;background:var(--line-soft)}
-.tpd-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--sans)}
-.tpd-see{display:block;margin:10px 12px 12px;margin-top:auto;background:#7C3AED;color:#fff!important;text-decoration:none!important;text-align:center;font-family:var(--sans);font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;border-radius:10px;padding:13px 14px}
+.tpd-list span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:'Bricolage Grotesque', system-ui, sans-serif}
+.tpd-see{display:block;margin:10px 12px 12px;margin-top:auto;background:#7C3AED;color:#fff!important;text-decoration:none!important;text-align:center;font-family:'Bricolage Grotesque', system-ui, sans-serif;font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase;border-radius:10px;padding:13px 14px}
 .tpd-see:hover{background:#6D28D9;color:#fff!important}
 @media(max-width:1100px){.tpd-col{flex-basis:calc((100% - 14px) / 2);max-width:calc((100% - 14px) / 2)}}
 @media(max-width:640px){.tpd-col{flex-basis:100%;max-width:100%}.tpd-list{max-height:518.90625px}}
