@@ -382,8 +382,8 @@ def make_thumbs(src: Path, stem: str) -> tuple[int, int]:
     target = 16 / 10
     if width / height > target:
         cropped = int(height * target)
-        left = (width - cropped) // 2
-        image = image.crop((left, 0, left + cropped, height))
+        # Keep the title side. These covers put the headline on the left.
+        image = image.crop((0, 0, cropped, height))
     else:
         cropped = int(width / target)
         top = max(0, (height - cropped) // 2)
