@@ -125,15 +125,96 @@ def one_line(text: str, limit: int = 70) -> str:
     return fit(first, limit)
 
 
-def short_line(text: str, limit: int) -> str:
-    """The start of the first sentence, short enough for one cover line."""
+START_SKIP = {
+    "so", "but", "and", "or", "nor", "yet", "also", "although", "though",
+    "however", "plus", "with", "because", "if", "when", "while", "as", "at",
+    "from", "of", "in", "to", "for", "on", "by", "into", "over", "than",
+    "about", "after", "before", "which", "whose", "without", "within",
+}
+
+
+def clauses(text: str):
+    """Whole sentences and comma-clauses. Nothing is cut mid-phrase."""
     text = clean(text)
-    sentence = re.split(r"(?<=[.!?])\s", text)[0].strip().rstrip(".!?")
-    if not sentence:
-        return ""
-    if len(sentence) <= limit and not cut_off(sentence):
-        return sentence
-    return fit(sentence, limit)
+    # Keep thousands separators (1,000) intact.
+    parts = re.split(r"(?<=[.!?])\s+|\s*[:;]\s*|\s*,\s*(?!\d)", text)
+    for chunk in parts:
+        chunk = chunk.strip().strip("\"'").rstrip(".!?").strip()
+        if not chunk or chunk[0].islower():
+            continue
+        words = chunk.split()
+        first = re.sub(r"[^A-Za-z]", "", words[0]).lower()
+        if first in START_SKIP or cut_off(chunk) or words[-1].lower() == "not":
+            continue
+        if len(words) >= 2 and words[-2].lower() in {"a", "an"}:
+            continue
+        if re.search(r"\b(because|although|though|while|which|whose)\b", chunk, re.I):
+            continue
+        yield chunk
+
+
+def review_subtitle(text: str) -> str:
+    sources = takeaways(text) + glances(text) + [meta_desc(text), lede_of(text)]
+    for source in sources:
+        for clause in clauses(source):
+            if 4 <= len(clause.split()) <= 8:
+                return clause
+    scored = score_fact(text)
+    if scored:
+        return f"Scored {scored[0]} out of 10"
+    return "Fees and rules in this review"
+
+
+def review_hook(text: str, subtitle: str) -> str:
+    sources = takeaways(text) + glances(text) + [meta_desc(text), lede_of(text)]
+    for source in sources:
+        for clause in clauses(source):
+            words = len(clause.split())
+            if clause.lower() == subtitle.lower():
+                continue
+            if 4 <= words <= 12 and len(clause) <= 62:
+                return clause
+    return "Checked against the published rules"
+
+
+def review_chips(text: str) -> list[str]:
+    labels = []
+    for label in chips_for(text, allow_headings=False, limit=6):
+        if label == "Trading allowance" and not re.search(r"\btrading\b", text, re.I):
+            continue
+        if label == "HMRC tax" and not re.search(r"\bhmrc\b", text, re.I):
+            continue
+        if 1 <= len(label.split()) <= 3 and len(label) <= 18 and not cut_off(label):
+            labels.append(label)
+        if len(labels) == 3:
+            break
+    if not labels:
+        scored = score_fact(text)
+        if scored:
+            labels.append(f"Score {scored[0]}")
+    return labels[:3]
+
+
+def review_headings(text: str) -> list[str]:
+    """Section titles that already fit the card. No mid-phrase cuts."""
+    suffixes = (" at a glance", " in 2026", " for 2026")
+    found = []
+    for head in headings(text):
+        title = head.rstrip("?").strip()
+        lower = title.lower()
+        for suffix in suffixes:
+            if lower.endswith(suffix):
+                title = title[: -len(suffix)].strip()
+                lower = title.lower()
+                break
+        if not (2 <= len(title.split()) <= 5 and len(title) <= 22):
+            continue
+        if cut_off(title) or title.lower() in {item.lower() for item in found}:
+            continue
+        found.append(title)
+        if len(found) == 4:
+            break
+    return found
 
 
 def targets() -> list[Path]:
@@ -337,7 +418,7 @@ LABEL_RULES = [
 ]
 
 
-def chips_for(text: str) -> list[str]:
+def chips_for(text: str, *, allow_headings: bool = True, limit: int = 4) -> list[str]:
     blob = clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text), field(text, "h1")]))
     seen, out = set(), []
     for pattern, label in LABEL_RULES:
@@ -348,9 +429,9 @@ def chips_for(text: str) -> list[str]:
             continue
         seen.add(key)
         out.append(label)
-        if len(out) == 4:
+        if len(out) == limit:
             break
-    if len(out) < 3:
+    if allow_headings and len(out) < 3:
         for head in headings(text):
             words = [word for word in re.findall(r"[A-Za-z0-9+£$%]+", head) if word.lower() not in STOP]
             if not words:
@@ -360,9 +441,9 @@ def chips_for(text: str) -> list[str]:
                 continue
             seen.add(label.lower())
             out.append(label)
-            if len(out) == 4:
+            if len(out) == limit:
                 break
-    return out[:4]
+    return out[:limit]
 
 
 def sentence_with(blob: str, match: re.Match) -> str:
@@ -494,24 +575,30 @@ def stat_label(number: str, caption: str) -> str:
 
 def side_html(text: str, slug: str, title: str) -> str:
     review = slug.endswith("-review")
-    heads = headings(text)
-    # Reviews follow the guide cover: a numbered list when the post has sections.
-    if review and len(heads) >= 3:
-        lines = []
-        for head in heads[:4]:
-            line = fit(head, 28)
-            while line and cut_off(line):
-                line = " ".join(line.split()[:-1])
-            if line:
-                lines.append(line)
-        items = "".join(
-            f"<li><b>{index:02d}</b><span>{show(line)}</span></li>"
-            for index, line in enumerate(lines, start=1)
-        )
-        return f'<aside class="card list"><p class="label">In this review</p><ol>{items}</ol></aside>'
     if review:
+        lines = review_headings(text)
+        if len(lines) >= 3:
+            items = "".join(
+                f"<li><b>{index:02d}</b><span>{show(line)}</span></li>"
+                for index, line in enumerate(lines, start=1)
+            )
+            return f'<aside class="card list"><p class="label">In this review</p><ol>{items}</ol></aside>'
         blob = fact_blob(text)
-        fact = percent_fact(blob) or money_fact(blob) or score_fact(text)
+        match = PERCENT.search(blob)
+        if match:
+            number = re.sub(r"\s+", " ", match.group(0)).strip()
+            sentence = sentence_with(blob, match).lower()
+            if re.search(r"\b(keep|kept|receive|receives|share)\b", sentence):
+                caption = "Creator share"
+            elif re.search(r"\b(fee|cut|charge)\b", sentence):
+                caption = "Platform fee"
+            else:
+                caption = "In this review"
+            fact = (number, caption)
+        else:
+            fact = score_fact(text)
+        if not fact:
+            return f'<aside class="card icon">{icon_for(slug, title)}</aside>'
     else:
         fact = fact_for(text)
     if fact:
@@ -605,21 +692,22 @@ def build_post(path: Path) -> dict:
     title = cover_title(title, review)
     lede = lede_of(text) or meta_desc(text)
     slug = path.parent.name
-    subtitle = short_line(lede, 42) if review else one_line(lede, 70)
-    notes = takeaways(text) + glances(text)[1:]
-    hook = ""
-    hook_limit = 58 if review else 78
-    for note in notes:
-        line = short_line(note, hook_limit) if review else one_line(note, hook_limit)
-        if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
-            hook = line
-            break
-    if not hook:
-        hook = (
-            "Fees, payouts and the rules checked for this review"
-            if slug.endswith("-review")
-            else "Prices, rules and risks checked for this guide"
-        )
+    if review:
+        subtitle = review_subtitle(text)
+        hook = review_hook(text, subtitle)
+        chips = review_chips(text)
+    else:
+        subtitle = one_line(lede, 70)
+        notes = takeaways(text) + glances(text)[1:]
+        hook = ""
+        for note in notes:
+            line = one_line(note, 78)
+            if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
+                hook = line
+                break
+        if not hook:
+            hook = "Prices, rules and risks checked for this guide"
+        chips = chips_for(text)
     return {
         "path": path,
         "slug": slug,
@@ -627,7 +715,7 @@ def build_post(path: Path) -> dict:
         "title_html": accent_title(title),
         "kicker": kicker_for(path, title, text),
         "subtitle": subtitle,
-        "chips": chips_for(text),
+        "chips": chips,
         "side": side_html(text, slug, title),
         "hook": hook,
         "text": text,
