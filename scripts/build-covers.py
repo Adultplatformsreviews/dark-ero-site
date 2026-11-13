@@ -7,6 +7,7 @@ figure and checklist line is taken from that post.
 """
 from __future__ import annotations
 
+import base64
 import html
 import re
 import sys
@@ -16,7 +17,9 @@ from PIL import Image
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
-FONT = ROOT / "assets" / "fonts" / "bricolage-grotesque-latin.woff2"
+FONT_URI = "data:font/woff2;base64," + base64.b64encode(
+    (ROOT / "assets" / "fonts" / "bricolage-grotesque-latin.woff2").read_bytes()
+).decode("ascii")
 LOGO = (ROOT / "assets" / "logo.svg").read_text(encoding="utf-8")
 LOGO = re.sub(r"<\?xml[^>]*>", "", LOGO)
 LOGO = re.sub(r'width="64"', 'width="36"', LOGO)
@@ -40,8 +43,11 @@ STOP = {
     "sell", "take", "keep", "see", "read", "use", "do", "does", "can", "may",
 }
 DANGLING = {
-    "before", "of", "in", "to", "a", "an", "the", "so", "just", "is", "for",
-    "and", "on", "with", "that", "up", "by", "or", "as", "at", "from",
+    "before", "of", "in", "to", "a", "an", "the", "just", "for", "and", "on",
+    "with", "that", "up", "by", "or", "as", "at", "from", "because", "which",
+    "while", "than", "about", "after", "into", "over", "who", "whose", "were",
+    "was", "their", "your", "you", "its", "if", "when", "how", "what", "all",
+    "showed", "covers", "near", "then", "ranked",
 }
 MONEY = re.compile(
     r"(?:£|\$|€)\s?\d{1,3}(?:,\d{3})*(?:\.\d+)?(?:\s?(?:million|billion))?"
@@ -67,12 +73,36 @@ def clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def clip(text: str, limit: int) -> str:
-    text = clean(text)
+def last_word(text: str) -> str:
+    parts = text.split()
+    if not parts:
+        return ""
+    return re.sub(r"[^A-Za-z]", "", parts[-1]).lower()
+
+
+def cut_off(text: str) -> bool:
+    return last_word(text) in DANGLING
+
+
+def fit(text: str, limit: int) -> str:
+    """Shorten on a word boundary. No ellipsis. Drop a trailing preposition only after a cut."""
+    text = clean(text).rstrip(".!?")
     if len(text) <= limit:
         return text
-    cut = text[:limit].rsplit(" ", 1)[0]
-    return cut.rstrip(".,;:") + "…"
+    words = text.split()
+    while words and len(" ".join(words)) > limit:
+        words.pop()
+    while len(words) > 4 and cut_off(" ".join(words)):
+        words.pop()
+    return " ".join(words).rstrip(".,;:").strip()
+
+
+def one_line(text: str, limit: int = 70) -> str:
+    text = clean(text)
+    first = re.split(r"(?<=[.!?])\s", text)[0].strip().rstrip(".!?")
+    if len(first) <= limit:
+        return first
+    return fit(first, limit)
 
 
 def targets() -> list[Path]:
@@ -212,31 +242,62 @@ def accent_title(title: str) -> str:
     return " ".join(html_words)
 
 
-def chip(text: str) -> str:
-    clause = re.split(r"[,.]", clean(text))[0].strip()
-    words = clause.split()
-    while words and words[-1].lower().strip(":;") in DANGLING:
-        words.pop()
-    if len(words) > 5:
-        words = words[:5]
-        while words and words[-1].lower().strip(":;") in DANGLING:
-            words.pop()
-    return " ".join(words)
+# Complete 1–3 word labels. A label is used only when the post itself says so.
+LABEL_RULES = [
+    (r"\bhmrc\b", "HMRC tax"),
+    (r"\ballowance\b", "Trading allowance"),
+    (r"\banonym", "Stay anonymous"),
+    (r"\b18\b", "Legal 18+"),
+    (r"£", "Priced in £"),
+    (r"\$", "Priced in $"),
+    (r"\brefund", "Refund rules"),
+    (r"\bverif|\bid check|\bgovernment id\b", "ID check"),
+    (r"\b80\s*(?:%|percent)", "80% kept"),
+    (r"\b20\s*(?:%|percent)", "20% fee"),
+    (r"\bvpn\b", "VPN limits"),
+    (r"\bscam", "Scam checks"),
+    (r"\bwatermark", "Watermark previews"),
+    (r"\bclosed\b|\bshut down\b|\bhas not returned\b", "Site closed"),
+    (r"\bmemory\b", "Memory ranked"),
+    (r"\bfree\b", "Free tier"),
+    (r"\bprivate show|\bprivate\b", "Private shows"),
+    (r"\btoken", "Token prices"),
+    (r"\bpayout", "Payout rules"),
+    (r"\bself assessment\b|\bregister\b", "Register income"),
+    (r"\bphone\b", "Phone is enough"),
+    (r"\bapk\b|\bunban app", "No unban apps"),
+    (r"\bleak", "Leak risk"),
+    (r"\bconsent\b", "Consent rules"),
+    (r"\bage\b", "Age checked"),
+]
 
 
 def chips_for(text: str) -> list[str]:
-    pool = glances(text) + takeaways(text)
+    blob = clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text), field(text, "h1")]))
     seen, out = set(), []
-    for item in pool:
-        label = chip(item)
+    for pattern, label in LABEL_RULES:
+        if not re.search(pattern, blob, re.I):
+            continue
         key = label.lower()
-        if len(label) < 4 or key in seen:
+        if key in seen:
             continue
         seen.add(key)
         out.append(label)
         if len(out) == 4:
             break
-    return out
+    if len(out) < 3:
+        for head in headings(text):
+            words = [word for word in re.findall(r"[A-Za-z0-9+£$%]+", head) if word.lower() not in STOP]
+            if not words:
+                continue
+            label = " ".join(words[:3])
+            if label.lower() in seen or len(label) < 3:
+                continue
+            seen.add(label.lower())
+            out.append(label)
+            if len(out) == 4:
+                break
+    return out[:4]
 
 
 def sentence_with(blob: str, match: re.Match) -> str:
@@ -257,16 +318,20 @@ WORDS = {
 def caption_beside(sentence: str, number: str) -> str:
     index = sentence.find(number)
     if index < 0:
-        return clip(sentence, 52)
+        return fit(sentence, 52)
     after = sentence[index + len(number):].strip(" .,;")
     before = sentence[:index].strip(" .,;")
-    source = after if len(after) >= 12 else before
+    before_l = before.lower()
+    if any(word in before_l for word in ("allowance", "plan", "fee", "gross", "closed", "keeps")):
+        source = before
+    else:
+        source = after if len(after) >= 12 else before
     words = source.split()[:8]
     while words and words[0].lower().strip(",;") in {"of", "a", "the", "so", "and", "near"}:
         words.pop(0)
     while words and words[-1].lower().strip(",;") in DANGLING:
         words.pop()
-    return clip(" ".join(words), 52)
+    return fit(" ".join(words), 52)
 
 
 def fact_for(text: str) -> tuple[str, str] | None:
@@ -286,8 +351,9 @@ def fact_for(text: str) -> tuple[str, str] | None:
         re.I,
     )
     if word:
-        caption = clip(word.group(2), 42)
-        if caption and caption.lower() not in DANGLING:
+        caption = fit(word.group(2), 42)
+        first = caption.split()[0].lower() if caption else ""
+        if caption and first not in DANGLING and not cut_off(caption):
             return WORDS[word.group(1).lower()], caption
     return None
 
@@ -306,19 +372,37 @@ def icon_for(slug: str, title: str) -> str:
     return '<svg viewBox="0 0 80 80" fill="none" stroke="#E9D5FF" stroke-width="2.4"><rect x="26" y="10" width="28" height="50" rx="6"/><circle cx="40" cy="52" r="2"/></svg>'
 
 
+def stat_label(number: str, caption: str) -> str:
+    blob = f"{number} {caption}".lower()
+    if "allowance" in blob or "hmrc" in blob or "trading income" in blob:
+        return "Trading allowance"
+    if "million" in blob or "gross" in blob:
+        return "Reported gross"
+    if re.search(r"20\d{2}", number):
+        return "On the record"
+    if "%" in number or "percent" in number.lower():
+        return "The cut"
+    if number.replace(",", "").isdigit():
+        return "In this guide"
+    if "$" in number or "£" in number or "€" in number:
+        return "Listed price"
+    return "From this guide"
+
+
 def side_html(text: str, slug: str, title: str) -> str:
     fact = fact_for(text)
     if fact:
         number, caption = fact
-        size = 64 if len(number) <= 8 else 42 if len(number) <= 14 else 32
+        size = 72 if len(number) <= 6 else 52 if len(number) <= 12 else 36
         return (
-            f'<aside class="card stat"><p class="num" style="font-size:{size}px">{esc(number)}</p>'
+            f'<aside class="card stat"><p class="label">{esc(stat_label(number, caption))}</p>'
+            f'<p class="num" style="font-size:{size}px">{esc(number)}</p>'
             f'<p class="cap">{esc(caption)}</p></aside>'
         )
     heads = headings(text)
     if len(heads) >= 3:
         items = "".join(
-            f"<li><b>{index:02d}</b><span>{esc(clip(head, 42))}</span></li>"
+            f"<li><b>{index:02d}</b><span>{esc(fit(head, 36))}</span></li>"
             for index, head in enumerate(heads[:4], start=1)
         )
         return f'<aside class="card list"><p class="label">In this guide</p><ol>{items}</ol></aside>'
@@ -327,50 +411,59 @@ def side_html(text: str, slug: str, title: str) -> str:
 
 def cover_html(post: dict) -> str:
     chips = "".join(f"<span><i></i>{esc(item)}</span>" for item in post["chips"])
-    size = 58 if len(post["title"]) < 36 else 46 if len(post["title"]) < 58 else 38
-    font = FONT.as_uri()
+    length = len(post["title"])
+    size = 84 if length <= 28 else 76 if length <= 42 else 68
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
-@font-face{{font-family:'Bricolage Grotesque';src:url('{font}') format('woff2');font-weight:200 800;font-display:block}}
+@font-face{{font-family:'Bricolage Grotesque';src:url('{FONT_URI}') format('woff2');font-weight:200 800;font-style:normal;font-display:block}}
 *{{box-sizing:border-box;margin:0;padding:0}}
 html,body{{width:1200px;height:630px;overflow:hidden;background:#0c0914}}
-body{{font-family:'Bricolage Grotesque',sans-serif;color:#fff}}
-.cover{{width:1200px;height:630px;display:flex;flex-direction:column;position:relative;
-  background:
-    radial-gradient(820px 380px at 108% -10%, rgba(124,58,237,.42), transparent 58%),
-    radial-gradient(640px 320px at -8% 110%, rgba(109,40,217,.28), transparent 55%),
-    linear-gradient(165deg,#24143f 0%, #140c24 48%, #0c0914 100%)}}
-.cover:before{{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
-  background-image:radial-gradient(rgba(233,213,255,.55) 1px, transparent 1.4px);
-  background-size:28px 28px;mask-image:linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent)}}
-.main{{position:relative;flex:1;display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:36px;padding:48px 52px 18px}}
-.kicker{{display:flex;align-items:center;gap:12px;color:#E9D5FF;font-size:15px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}}
-.kicker:before{{content:"";width:28px;height:2px;background:#C4A2FF;border-radius:2px}}
-h1{{margin-top:18px;font-size:{size}px;line-height:1.02;font-weight:760;letter-spacing:-.03em;max-width:16ch}}
-h1 em{{font-style:normal;color:#E9D5FF;box-shadow:inset 0 -6px 0 rgba(196,162,255,.45)}}
-.sub{{margin-top:16px;color:#C8BEDD;font-size:20px;line-height:1.35;max-width:34ch;font-weight:460}}
-.chips{{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px;max-width:540px}}
-.chips span{{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
-  background:rgba(20,12,36,.55);border:1px solid rgba(196,162,255,.38);color:#F4EEFF;font-size:15px;font-weight:600}}
-.chips i{{width:7px;height:7px;border-radius:50%;background:#C4A2FF;display:block}}
-.card{{align-self:center;border-radius:28px;background:linear-gradient(180deg, rgba(42,26,74,.78), rgba(16,10,28,.9));
-  border:1px solid rgba(196,162,255,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 18px 40px rgba(0,0,0,.28);
-  padding:28px 26px;min-height:280px;display:flex;flex-direction:column;justify-content:center}}
-.num{{font-weight:760;letter-spacing:-.04em;line-height:.95;color:#fff}}
-.cap{{margin-top:14px;color:#D9D0EA;font-size:18px;line-height:1.35;font-weight:500}}
-.list .label{{color:#E9D5FF;font-size:13px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;margin-bottom:14px}}
-.list ol{{list-style:none;display:flex;flex-direction:column;gap:12px}}
-.list li{{display:flex;gap:12px;align-items:flex-start;color:#F4EEFF;font-size:16px;line-height:1.3;font-weight:600}}
-.list b{{color:#C4A2FF;font-weight:750;font-variant-numeric:tabular-nums}}
-.icon{{align-items:center}}
-.icon svg{{width:148px;height:148px}}
-.bar{{position:relative;height:92px;display:flex;align-items:center;justify-content:space-between;gap:24px;
-  padding:0 40px;background:rgba(8,6,14,.72);border-top:1px solid rgba(196,162,255,.28)}}
-.brand{{display:flex;align-items:center;gap:12px;font-size:28px;font-weight:750;letter-spacing:-.03em}}
-.brand b{{font-weight:760}}
+body,.kicker,h1,.sub,.chips span,.label,.num,.cap,.list li,.brand,.hook{{font-family:'Bricolage Grotesque',sans-serif}}
+body{{color:#fff}}
+.cover{{width:1200px;height:630px;display:flex;flex-direction:column;position:relative;overflow:hidden;
+  background:linear-gradient(165deg,#2a1848 0%, #160d28 42%, #0c0914 100%)}}
+.orb{{position:absolute;width:520px;height:520px;border-radius:50%;right:-140px;top:-180px;
+  background:radial-gradient(circle, rgba(139,92,246,.62), rgba(109,40,217,.18) 42%, transparent 70%);filter:blur(2px)}}
+.orb.b{{width:380px;height:380px;left:-120px;bottom:-40px;top:auto;right:auto;
+  background:radial-gradient(circle, rgba(124,58,237,.35), transparent 68%)}}
+.stars{{position:absolute;inset:0;pointer-events:none;
+  background-image:
+    radial-gradient(1.4px 1.4px at 8% 18%, rgba(244,238,255,.85), transparent),
+    radial-gradient(1.2px 1.2px at 22% 62%, rgba(233,213,255,.7), transparent),
+    radial-gradient(1.6px 1.6px at 40% 28%, rgba(255,255,255,.75), transparent),
+    radial-gradient(1px 1px at 58% 70%, rgba(196,162,255,.8), transparent),
+    radial-gradient(1.3px 1.3px at 73% 22%, rgba(255,255,255,.7), transparent),
+    radial-gradient(1px 1px at 86% 48%, rgba(233,213,255,.65), transparent),
+    radial-gradient(rgba(233,213,255,.45) .7px, transparent .9px);
+  background-size:auto,auto,auto,auto,auto,auto,26px 26px}}
+.main{{position:relative;flex:1;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:40px;align-items:center;padding:36px 52px 12px}}
+.kicker{{display:flex;align-items:center;gap:12px;color:#E9D5FF;font-size:16px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}}
+.kicker:before{{content:"";width:34px;height:3px;background:#C4A2FF;border-radius:2px}}
+h1{{margin-top:14px;font-size:{size}px;line-height:.98;font-weight:700;letter-spacing:-.035em}}
+h1 em{{font-style:normal;color:#E9D5FF;box-shadow:inset 0 -7px 0 rgba(196,162,255,.5)}}
+.sub{{margin-top:14px;color:#D5CCE8;font-size:22px;line-height:1.3;max-width:36ch;font-weight:500}}
+.chips{{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px;max-width:620px}}
+.chips span{{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:999px;
+  background:rgba(20,12,36,.62);border:1px solid rgba(196,162,255,.4);color:#F7F2FF;font-size:16px;font-weight:650}}
+.chips i{{width:8px;height:8px;border-radius:50%;background:#C4A2FF;display:block}}
+.card{{border-radius:26px;background:linear-gradient(180deg, rgba(48,30,84,.82), rgba(16,10,28,.92));
+  border:1px solid rgba(196,162,255,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.1), 0 18px 40px rgba(0,0,0,.28);
+  padding:22px 24px 20px}}
+.label{{color:#C4A2FF;font-size:13px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}}
+.num{{margin-top:8px;font-weight:700;letter-spacing:-.04em;line-height:.92;color:#fff}}
+.cap{{margin-top:10px;color:#DDD4EE;font-size:18px;line-height:1.3;font-weight:500}}
+.list ol{{list-style:none;display:flex;flex-direction:column;gap:12px;margin-top:14px}}
+.list li{{display:flex;gap:12px;align-items:flex-start;color:#F4EEFF;font-size:17px;line-height:1.25;font-weight:650}}
+.list b{{color:#C4A2FF;font-weight:700;font-variant-numeric:tabular-nums}}
+.icon{{align-items:center;display:flex;justify-content:center;min-height:220px}}
+.icon svg{{width:150px;height:150px}}
+.bar{{position:relative;height:88px;display:flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:0 40px;background:rgba(8,6,14,.78);border-top:1px solid rgba(196,162,255,.3)}}
+.brand{{display:flex;align-items:center;gap:12px;font-size:30px;font-weight:700;letter-spacing:-.03em}}
+.brand b{{font-weight:700}}
 .brand span{{color:#C4A2FF}}
-.hook{{color:#E4DCF4;font-size:18px;font-weight:500;text-align:right;max-width:640px}}
-</style></head><body><div class="cover"><div class="main"><div>
+.hook{{color:#E7DFF6;font-size:20px;font-weight:550;text-align:right;max-width:680px}}
+</style></head><body><div class="cover"><div class="orb"></div><div class="orb b"></div><div class="stars"></div><div class="main"><div>
 <p class="kicker">{esc(post["kicker"])}</p>
 <h1>{post["title_html"]}</h1>
 <p class="sub">{esc(post["subtitle"])}</p>
@@ -386,23 +479,41 @@ def build_post(path: Path) -> dict:
     title = re.sub(r"\s*\|\s*Dark-Ero\s*$", "", title).strip()
     lede = lede_of(text) or meta_desc(text)
     slug = path.parent.name
+    subtitle = one_line(lede, 70)
+    notes = takeaways(text) + glances(text)[1:]
+    hook = ""
+    for note in notes:
+        line = one_line(note, 78)
+        if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
+            hook = line
+            break
+    if not hook:
+        hook = "Prices, rules and risks checked for this guide"
     return {
         "path": path,
         "slug": slug,
         "title": title,
         "title_html": accent_title(title),
         "kicker": kicker_for(path, title),
-        "subtitle": clip(lede, 110),
+        "subtitle": subtitle,
         "chips": chips_for(text),
         "side": side_html(text, slug, title),
-        "hook": clip(lede, 78),
+        "hook": hook,
         "text": text,
     }
 
 
 def jpeg_bytes(page, html_text: str) -> bytes:
-    page.set_content(html_text, wait_until="networkidle")
-    page.evaluate("() => document.fonts.ready")
+    page.set_content(html_text, wait_until="load")
+    loaded = page.evaluate(
+        """async () => {
+          await document.fonts.ready;
+          await document.fonts.load("700 80px 'Bricolage Grotesque'");
+          return document.fonts.check("700 80px 'Bricolage Grotesque'");
+        }"""
+    )
+    if not loaded:
+        raise SystemExit("Bricolage Grotesque did not load")
     data = b""
     for quality in (76, 68, 58, 48, 40):
         data = page.screenshot(type="jpeg", quality=quality, clip={"x": 0, "y": 0, "width": 1200, "height": 630})
