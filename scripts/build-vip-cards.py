@@ -406,18 +406,41 @@ def make_thumbs(src: Path, stem: str) -> tuple[int, int]:
     return sizes[480], sizes[800]
 
 
-def render_card(meta: dict, href: str, image_mode: str) -> str:
+def logo_src(path: str) -> str | None:
+    slug = path.strip("/").split("/")[-1]
+    if (ROOT / "assets" / "logos" / f"{slug}.webp").exists():
+        return f"/assets/logos/{slug}.webp"
+    return None
+
+
+def render_card(meta: dict, href: str, image_mode: str, logo_mode: str = "lazy") -> str:
     excerpt = meta["description"]
     date = meta["date"]
     if meta["kind"] == "review":
+        logo = logo_src(meta["path"])
+        if logo:
+            loading = ' loading="eager"' if logo_mode == "eager" else ' loading="lazy"'
+            mark = (
+                '<span class="vip-mark vip-logo"><img src="'
+                + logo
+                + '" width="44" height="44" alt="" decoding="async"'
+                + loading
+                + "></span>"
+            )
+        else:
+            mark = (
+                '<span class="vip-mark" style="background:'
+                + mark_color(meta["path"])
+                + '" aria-hidden="true">'
+                + esc(initials(meta["name"]))
+                + "</span>"
+            )
         bits = [
             '<article class="vip-rich vip-review"><a class="vip-card" href="',
             esc(href),
-            '"><span class="vip-top"><span class="vip-mark" style="background:',
-            mark_color(meta["path"]),
-            '" aria-hidden="true">',
-            esc(initials(meta["name"])),
-            '</span><span class="vip-id"><h3>',
+            '"><span class="vip-top">',
+            mark,
+            '<span class="vip-id"><h3>',
             esc(meta["name"]),
             '</h3><span class="vip-cat">',
             esc(meta["category"]),
@@ -479,7 +502,7 @@ def render_card(meta: dict, href: str, image_mode: str) -> str:
     return "".join(bits)
 
 
-def replace_outside_scripts(html: str, cards_for) -> tuple[str, int]:
+def replace_outside_scripts(html: str, cards_for, covers: bool = True) -> tuple[str, int]:
     parts = SCRIPT_RE.split(html)
     count = 0
 
@@ -494,6 +517,14 @@ def replace_outside_scripts(html: str, cards_for) -> tuple[str, int]:
         if meta is None:
             return old
         mode = ""
+        logo_mode = "lazy"
+        if state["eager"]:
+            state["cards"] = state.get("cards", 0) + 1
+            if state["cards"] <= 3:
+                logo_mode = "eager"
+        if not covers:
+            count += 1
+            return render_card(meta, href, "", logo_mode)
         if state["eager"] and meta["kind"] == "guide" and meta.get("thumb"):
             state["n"] += 1
             # The first cover is the likely LCP image. The next two sit in the
@@ -508,7 +539,7 @@ def replace_outside_scripts(html: str, cards_for) -> tuple[str, int]:
         elif meta["kind"] == "guide" and meta.get("thumb"):
             mode = "lazy"
         count += 1
-        return render_card(meta, href, mode)
+        return render_card(meta, href, mode, logo_mode)
 
     def repl_part(part: str) -> str:
         chunks = re.split(r'(<div class="vip-grid">)', part)
@@ -560,15 +591,12 @@ def patch_directory_app(cards: dict[str, str]) -> None:
     function = """function categoryGuidesHtml(slug){
   var list=CATEGORY_GUIDES[slug];
   if(!list||!list.length)return "";
-  var cards="",eager=0;
+  var cards="";
   for(var i=0;i<list.length;i++){
     var g=list[i];
     var html=VIP_CARD[g.url];
     if(!html)html='<article class="vip-rich"><h3><a href="'+escHtml(g.url)+'">'+escHtml(g.title)+'</a></h3></article>';
-    else if(eager<3 && html.indexOf("vip-cover")!==-1){
-      html=html.replace(' loading="lazy"',' loading="eager"'+(eager?' fetchpriority="low"':' fetchpriority="high"'));
-      eager++;
-    }
+    else html=html.replace(/<span class="vip-cover">[\\s\\S]*?<\\/span>/,"");
     cards+=html;
   }
   return '<section class="vip-guides cat-guides" aria-labelledby="cat-guides-'+slug+'"><div class="section-head"><h2 id="cat-guides-'+slug+'">Guides</h2></div><div class="vip-grid">'+cards+'</div></section>';
@@ -586,6 +614,54 @@ def patch_directory_app(cards: dict[str, str]) -> None:
     text = text.replace(marker, blob + marker, 1)
     path.write_text(text, encoding="utf-8")
     print(f"directory-app.js cards {len(payload)}")
+
+
+KEEP_SITES = 15
+OL_RE = re.compile(r'(<ol class="tpd-list"[^>]*>)(.*?)(</ol>)', re.S)
+LI_RE = re.compile(r"<li\b[^>]*>.*?</li>", re.S)
+
+
+def trim_lists(html: str) -> str:
+    """Keep the first 15 sites in each directory column. SEE ALL still links the full category."""
+
+    def repl(match: re.Match) -> str:
+        items = LI_RE.findall(match.group(2))
+        if len(items) <= KEEP_SITES:
+            return match.group(0)
+        return match.group(1) + "".join(items[:KEEP_SITES]) + match.group(3)
+
+    return OL_RE.sub(repl, html)
+
+
+def trim_directory_lists() -> None:
+    changed = 0
+    saved = 0
+    for path in sorted(ROOT.rglob("*")):
+        if any(part.startswith(".") for part in path.relative_to(ROOT).parts):
+            continue
+        if path.suffix == ".html":
+            original = path.read_text(encoding="utf-8")
+            if "tpd-list" not in original:
+                continue
+            updated = trim_lists(original)
+            if updated != original:
+                path.write_text(updated, encoding="utf-8")
+                changed += 1
+                saved += len(original) - len(updated)
+        elif path.suffix == ".json" and "assets" in path.parts and "pages" in path.parts:
+            raw = path.read_text(encoding="utf-8")
+            if "tpd-list" not in raw:
+                continue
+            data = json.loads(raw)
+            body = data.get("body") or ""
+            updated = trim_lists(body)
+            if updated == body:
+                continue
+            data["body"] = updated
+            path.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+            changed += 1
+            saved += len(body) - len(updated)
+    print(f"trimmed columns in {changed} files, removed {saved} bytes")
 
 
 def main() -> None:
@@ -648,7 +724,7 @@ def main() -> None:
         original = path.read_text(encoding="utf-8")
         before_ld = ld_blob(original)
         before_count = len(ARTICLE_RE.findall(original))
-        updated, count = replace_outside_scripts(original, posts.get)
+        updated, count = replace_outside_scripts(original, posts.get, covers="/category/" not in path.as_posix())
         if ld_blob(updated) != before_ld:
             raise SystemExit(f"JSON-LD changed in {path}")
         if count != before_count:
@@ -663,7 +739,7 @@ def main() -> None:
         data = json.loads(raw)
         body = data.get("body", "")
         before_count = len(ARTICLE_RE.findall(body))
-        updated, count = replace_outside_scripts(body, posts.get)
+        updated, count = replace_outside_scripts(body, posts.get, covers="/category/" not in path.as_posix())
         if count != before_count:
             raise SystemExit(f"json card count changed in {path}")
         if updated == body:
@@ -708,6 +784,7 @@ def main() -> None:
     print("DUPLICATE EXCERPTS", len(dupes))
     for text, paths in list(dupes.items())[:8]:
         print(" DUP", paths, text[:80])
+    trim_directory_lists()
     print("--- sample ---")
     for path in ("/stripchat-review/", "/footly-review/", "/fikfap-review/", "/blog/best-dating-apps/", "/best-ai-girlfriend-apps/", "/sugar-daddy-apps/", "/comparisons/chaturbate-vs-stripchat/", "/blog/topic/ai/", "/about/"):
         meta = posts[path]
