@@ -11,6 +11,7 @@ import base64
 import html
 import re
 import sys
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image
@@ -124,6 +125,98 @@ def one_line(text: str, limit: int = 70) -> str:
     return fit(first, limit)
 
 
+START_SKIP = {
+    "so", "but", "and", "or", "nor", "yet", "also", "although", "though",
+    "however", "plus", "with", "because", "if", "when", "while", "as", "at",
+    "from", "of", "in", "to", "for", "on", "by", "into", "over", "than",
+    "about", "after", "before", "which", "whose", "without", "within",
+}
+
+
+def clauses(text: str):
+    """Whole sentences and comma-clauses. Nothing is cut mid-phrase."""
+    text = clean(text)
+    # Keep thousands separators (1,000) intact.
+    parts = re.split(r"(?<=[.!?])\s+|\s*[:;]\s*|\s*,\s*(?!\d)", text)
+    for chunk in parts:
+        chunk = chunk.strip().strip("\"'").rstrip(".!?").strip()
+        if not chunk or chunk[0].islower():
+            continue
+        words = chunk.split()
+        first = re.sub(r"[^A-Za-z]", "", words[0]).lower()
+        if first in START_SKIP or cut_off(chunk) or words[-1].lower() == "not":
+            continue
+        if len(words) >= 2 and words[-2].lower() in {"a", "an"}:
+            continue
+        if re.search(r"\b(because|although|though|while|which|whose)\b", chunk, re.I):
+            continue
+        yield chunk
+
+
+def review_subtitle(text: str) -> str:
+    sources = takeaways(text) + glances(text) + [meta_desc(text), lede_of(text)]
+    for source in sources:
+        for clause in clauses(source):
+            if 4 <= len(clause.split()) <= 8:
+                return clause
+    scored = score_fact(text)
+    if scored:
+        return f"Scored {scored[0]} out of 10"
+    return "Fees and rules in this review"
+
+
+def review_hook(text: str, subtitle: str) -> str:
+    sources = takeaways(text) + glances(text) + [meta_desc(text), lede_of(text)]
+    for source in sources:
+        for clause in clauses(source):
+            words = len(clause.split())
+            if clause.lower() == subtitle.lower():
+                continue
+            if 4 <= words <= 12 and len(clause) <= 62:
+                return clause
+    return "Checked against the published rules"
+
+
+def review_chips(text: str) -> list[str]:
+    labels = []
+    for label in chips_for(text, allow_headings=False, limit=6):
+        if label == "Trading allowance" and not re.search(r"\btrading\b", text, re.I):
+            continue
+        if label == "HMRC tax" and not re.search(r"\bhmrc\b", text, re.I):
+            continue
+        if 1 <= len(label.split()) <= 3 and len(label) <= 18 and not cut_off(label):
+            labels.append(label)
+        if len(labels) == 3:
+            break
+    if not labels:
+        scored = score_fact(text)
+        if scored:
+            labels.append(f"Score {scored[0]}")
+    return labels[:3]
+
+
+def review_headings(text: str) -> list[str]:
+    """Section titles that already fit the card. No mid-phrase cuts."""
+    suffixes = (" at a glance", " in 2026", " for 2026")
+    found = []
+    for head in headings(text):
+        title = head.rstrip("?").strip()
+        lower = title.lower()
+        for suffix in suffixes:
+            if lower.endswith(suffix):
+                title = title[: -len(suffix)].strip()
+                lower = title.lower()
+                break
+        if not (2 <= len(title.split()) <= 5 and len(title) <= 22):
+            continue
+        if cut_off(title) or title.lower() in {item.lower() for item in found}:
+            continue
+        found.append(title)
+        if len(found) == 4:
+            break
+    return found
+
+
 def targets() -> list[Path]:
     found = []
     hubs = {"blog", "comparisons", "best-lists", "alternatives", "reviews", "category"}
@@ -137,9 +230,10 @@ def targets() -> list[Path]:
             continue
         if parent == ROOT or parent.name in hubs and parent.parent == ROOT:
             continue
-        if parent.name.endswith("-review"):
-            continue
         rel = parent.relative_to(ROOT).as_posix()
+        if parent.name.endswith("-review") and parent.parent == ROOT:
+            found.append(path)
+            continue
         name = parent.name
         if (
             rel.startswith("blog/")
@@ -207,9 +301,42 @@ def feetish(slug: str, title: str) -> bool:
     return any(word in blob for word in ("feet", "foot", "panty", "panties", "fetishfinder"))
 
 
-def kicker_for(path: Path, title: str) -> str:
+def cover_title(title: str, review: bool) -> str:
+    """Review titles stay short, like the guide covers. The year lives in the kicker."""
+    if not review:
+        return title
+    head = title.split(":", 1)[0].strip()
+    head = re.sub(r"\s+20\d{2}$", "", head).strip()
+    if 8 <= len(head) <= 32:
+        return head
+    return fit(head or title, 28)
+
+
+def review_topic(text: str) -> str:
+    match = re.search(
+        r'class="crumbs".*?<a [^>]*href="[^"]*/category/[^"]+"[^>]*>([^<]+)</a>',
+        text,
+        re.S,
+    )
+    crumb = clean(match.group(1)).lower() if match else ""
+    labels = {
+        "creator platforms": "Creator review",
+        "feet marketplaces": "Feet review",
+        "live cams": "Cam review",
+        "ai tools": "AI review",
+        "adult video": "Tube review",
+        "stories and audio": "Story review",
+        "premium": "Premium review",
+        "dating": "Dating review",
+    }
+    return labels.get(crumb, "Site review")
+
+
+def kicker_for(path: Path, title: str, text: str = "") -> str:
     slug = path.parent.name
     rel = path.parent.relative_to(ROOT).as_posix()
+    if slug.endswith("-review"):
+        return f"{review_topic(text)} · 2026"
     if "uk" in slug and feetish(slug, title):
         label = "UK seller guide"
     elif feetish(slug, title):
@@ -291,7 +418,7 @@ LABEL_RULES = [
 ]
 
 
-def chips_for(text: str) -> list[str]:
+def chips_for(text: str, *, allow_headings: bool = True, limit: int = 4) -> list[str]:
     blob = clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text), field(text, "h1")]))
     seen, out = set(), []
     for pattern, label in LABEL_RULES:
@@ -302,9 +429,9 @@ def chips_for(text: str) -> list[str]:
             continue
         seen.add(key)
         out.append(label)
-        if len(out) == 4:
+        if len(out) == limit:
             break
-    if len(out) < 3:
+    if allow_headings and len(out) < 3:
         for head in headings(text):
             words = [word for word in re.findall(r"[A-Za-z0-9+£$%]+", head) if word.lower() not in STOP]
             if not words:
@@ -314,9 +441,9 @@ def chips_for(text: str) -> list[str]:
                 continue
             seen.add(label.lower())
             out.append(label)
-            if len(out) == 4:
+            if len(out) == limit:
                 break
-    return out[:4]
+    return out[:limit]
 
 
 def sentence_with(blob: str, match: re.Match) -> str:
@@ -353,8 +480,44 @@ def caption_beside(sentence: str, number: str) -> str:
     return fit(" ".join(words), 52)
 
 
+def fact_blob(text: str) -> str:
+    return clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text)]))
+
+
+PERCENT = re.compile(r"\b\d{1,3}(?:\.\d+)?\s?(?:%|percent)(?!\w)", re.I)
+
+
+def percent_fact(blob: str) -> tuple[str, str] | None:
+    match = PERCENT.search(blob)
+    if not match:
+        return None
+    number = re.sub(r"\s+", " ", match.group(0)).strip()
+    caption = caption_beside(sentence_with(blob, match), number)
+    if caption and not cut_off(caption):
+        return number, caption
+    return None
+
+
+def money_fact(blob: str) -> tuple[str, str] | None:
+    match = MONEY.search(blob)
+    if not match:
+        return None
+    number = re.sub(r"\s+", " ", match.group(0)).strip()
+    caption = caption_beside(sentence_with(blob, match), number)
+    if caption and not cut_off(caption):
+        return number, caption
+    return None
+
+
+def score_fact(text: str) -> tuple[str, str] | None:
+    match = re.search(r'"ratingValue"\s*:\s*"(\d+(?:\.\d+)?)"', text)
+    if not match:
+        return None
+    return match.group(1), "out of 10"
+
+
 def fact_for(text: str) -> tuple[str, str] | None:
-    blob = clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text)]))
+    blob = fact_blob(text)
     for pattern in (MONEY, DATE):
         match = pattern.search(blob)
         if not match:
@@ -395,6 +558,8 @@ def stat_label(number: str, caption: str) -> str:
     blob = f"{number} {caption}".lower()
     if "allowance" in blob or "hmrc" in blob or "trading income" in blob:
         return "Trading allowance"
+    if caption.strip().lower() == "out of 10":
+        return "Our score"
     if "million" in blob or "gross" in blob:
         return "Reported gross"
     if re.search(r"20\d{2}", number):
@@ -409,7 +574,33 @@ def stat_label(number: str, caption: str) -> str:
 
 
 def side_html(text: str, slug: str, title: str) -> str:
-    fact = fact_for(text)
+    review = slug.endswith("-review")
+    if review:
+        lines = review_headings(text)
+        if len(lines) >= 3:
+            items = "".join(
+                f"<li><b>{index:02d}</b><span>{show(line)}</span></li>"
+                for index, line in enumerate(lines, start=1)
+            )
+            return f'<aside class="card list"><p class="label">In this review</p><ol>{items}</ol></aside>'
+        blob = fact_blob(text)
+        match = PERCENT.search(blob)
+        if match:
+            number = re.sub(r"\s+", " ", match.group(0)).strip()
+            sentence = sentence_with(blob, match).lower()
+            if re.search(r"\b(keep|kept|receive|receives|share)\b", sentence):
+                caption = "Creator share"
+            elif re.search(r"\b(fee|cut|charge)\b", sentence):
+                caption = "Platform fee"
+            else:
+                caption = "In this review"
+            fact = (number, caption)
+        else:
+            fact = score_fact(text)
+        if not fact:
+            return f'<aside class="card icon">{icon_for(slug, title)}</aside>'
+    else:
+        fact = fact_for(text)
     if fact:
         number, caption = fact
         size = 72 if len(number) <= 6 else 52 if len(number) <= 12 else 36
@@ -424,7 +615,7 @@ def side_html(text: str, slug: str, title: str) -> str:
             f"<li><b>{index:02d}</b><span>{show(fit(head, 36))}</span></li>"
             for index, head in enumerate(heads[:4], start=1)
         )
-        return f'<aside class="card list"><p class="label">In this guide</p><ol>{items}</ol></aside>'
+        return f'<aside class="card list"><p class="label">{"In this review" if slug.endswith("-review") else "In this guide"}</p><ol>{items}</ol></aside>'
     return f'<aside class="card icon">{icon_for(slug, title)}</aside>'
 
 
@@ -497,26 +688,34 @@ def build_post(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     title = field(text, "h1") or path.parent.name.replace("-", " ").title()
     title = re.sub(r"\s*\|\s*Dark-Ero\s*$", "", title).strip()
+    review = path.parent.name.endswith("-review")
+    title = cover_title(title, review)
     lede = lede_of(text) or meta_desc(text)
     slug = path.parent.name
-    subtitle = one_line(lede, 70)
-    notes = takeaways(text) + glances(text)[1:]
-    hook = ""
-    for note in notes:
-        line = one_line(note, 78)
-        if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
-            hook = line
-            break
-    if not hook:
-        hook = "Prices, rules and risks checked for this guide"
+    if review:
+        subtitle = review_subtitle(text)
+        hook = review_hook(text, subtitle)
+        chips = review_chips(text)
+    else:
+        subtitle = one_line(lede, 70)
+        notes = takeaways(text) + glances(text)[1:]
+        hook = ""
+        for note in notes:
+            line = one_line(note, 78)
+            if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
+                hook = line
+                break
+        if not hook:
+            hook = "Prices, rules and risks checked for this guide"
+        chips = chips_for(text)
     return {
         "path": path,
         "slug": slug,
         "title": title,
         "title_html": accent_title(title),
-        "kicker": kicker_for(path, title),
+        "kicker": kicker_for(path, title, text),
         "subtitle": subtitle,
-        "chips": chips_for(text),
+        "chips": chips,
         "side": side_html(text, slug, title),
         "hook": hook,
         "text": text,
@@ -542,6 +741,54 @@ def jpeg_bytes(page, html_text: str) -> bytes:
     return data
 
 
+def write_review_thumbs(src: Path, stem: str) -> None:
+    image = Image.open(src).convert("RGB")
+    dest_dir = ROOT / "assets" / "card-thumbs"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for edge in (480, 800):
+        frame = image.resize((edge, edge * 630 // 1200), Image.Resampling.LANCZOS)
+        best = b""
+        for quality in (68, 60, 52, 44, 38, 32, 28, 24, 20, 16):
+            buffer = BytesIO()
+            frame.save(buffer, format="WEBP", quality=quality, method=6)
+            best = buffer.getvalue()
+            if len(best) <= 30 * 1024:
+                break
+        if len(best) > 30 * 1024:
+            raise SystemExit(f"{stem}-{edge}.webp is {len(best)} bytes")
+        (dest_dir / f"{stem}-{edge}.webp").write_bytes(best)
+
+
+FIG_RE = re.compile(r'<figure class="cover"><img src="cover\.jpg" alt="([^"]*)"></figure>')
+
+
+def patch_hero(path: Path, stem: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    src480 = f"/assets/card-thumbs/{stem}-480.webp"
+    src800 = f"/assets/card-thumbs/{stem}-800.webp"
+
+    def repl(match: re.Match) -> str:
+        alt = match.group(1)
+        return (
+            '<figure class="cover"><img src="'
+            + src800
+            + '" srcset="'
+            + src480
+            + " 480w, "
+            + src800
+            + ' 800w" sizes="(max-width:760px) 92vw, 760px" width="1200" height="630" alt="'
+            + alt
+            + '" decoding="async" fetchpriority="high"></figure>'
+        )
+
+    updated, count = FIG_RE.subn(repl, text, count=1)
+    if count != 1:
+        if src800 in text and 'fetchpriority="high"' in text:
+            return
+        raise SystemExit(f"hero cover not found in {path}")
+    path.write_text(updated, encoding="utf-8")
+
+
 def ensure_og(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     if 'property="og:image"' in text or "property='og:image'" in text:
@@ -560,6 +807,7 @@ def ensure_og(path: Path) -> None:
 def main() -> None:
     only = None
     write = "--write" in sys.argv
+    reviews_only = "--reviews" in sys.argv
     if "--only" in sys.argv:
         only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
     posts = [build_post(path) for path in targets()]
@@ -570,6 +818,8 @@ def main() -> None:
             broken.append(post["slug"])
     if broken:
         raise SystemExit("broken entities: " + ", ".join(broken))
+    if reviews_only:
+        posts = [post for post in posts if post["slug"].endswith("-review")]
     if only:
         posts = [post for post in posts if post["slug"] in only or post["path"].parent.relative_to(ROOT).as_posix() in only]
     out_dir = Path("/opt/cursor/artifacts/covers")
@@ -588,6 +838,9 @@ def main() -> None:
                 image = Image.open(dest)
                 if image.size != (1200, 630):
                     raise SystemExit(f"bad size {dest}")
+                if post["slug"].endswith("-review"):
+                    write_review_thumbs(dest, post["slug"])
+                    patch_hero(post["path"], post["slug"])
             print(f"{post['slug']:48} {len(data):6}  {post['kicker']}")
         browser.close()
     print(f"rendered {len(posts)}")

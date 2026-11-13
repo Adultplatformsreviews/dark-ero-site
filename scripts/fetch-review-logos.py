@@ -47,7 +47,7 @@ DOMAINS = {
     "fikfap-review": "fikfap.com",
     "flirt4free-review": "flirt4free.com",
     "footlove-review": "footlove.com",
-    "footly-review": "tryfootly.com",
+    "footly-review": "tryfootly.org",
     "fun-with-feet-review": "funwithfeet.net",
     "girlfriendgpt-review": "girlfriendgpt.com",
     "hqporner-review": "hqporner.com",
