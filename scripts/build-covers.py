@@ -125,6 +125,17 @@ def one_line(text: str, limit: int = 70) -> str:
     return fit(first, limit)
 
 
+def short_line(text: str, limit: int) -> str:
+    """The start of the first sentence, short enough for one cover line."""
+    text = clean(text)
+    sentence = re.split(r"(?<=[.!?])\s", text)[0].strip().rstrip(".!?")
+    if not sentence:
+        return ""
+    if len(sentence) <= limit and not cut_off(sentence):
+        return sentence
+    return fit(sentence, limit)
+
+
 def targets() -> list[Path]:
     found = []
     hubs = {"blog", "comparisons", "best-lists", "alternatives", "reviews", "category"}
@@ -210,21 +221,41 @@ def feetish(slug: str, title: str) -> bool:
 
 
 def cover_title(title: str, review: bool) -> str:
-    """Keep a review title to the platform name so the cover does not clip."""
+    """Review titles stay short, like the guide covers. The year lives in the kicker."""
     if not review:
         return title
-    if ":" in title:
-        head = title.split(":", 1)[0].strip()
-        if 8 <= len(head) <= 42:
-            return head
-    return fit(title, 42)
+    head = title.split(":", 1)[0].strip()
+    head = re.sub(r"\s+20\d{2}$", "", head).strip()
+    if 8 <= len(head) <= 32:
+        return head
+    return fit(head or title, 28)
 
 
-def kicker_for(path: Path, title: str) -> str:
+def review_topic(text: str) -> str:
+    match = re.search(
+        r'class="crumbs".*?<a [^>]*href="[^"]*/category/[^"]+"[^>]*>([^<]+)</a>',
+        text,
+        re.S,
+    )
+    crumb = clean(match.group(1)).lower() if match else ""
+    labels = {
+        "creator platforms": "Creator review",
+        "feet marketplaces": "Feet review",
+        "live cams": "Cam review",
+        "ai tools": "AI review",
+        "adult video": "Tube review",
+        "stories and audio": "Story review",
+        "premium": "Premium review",
+        "dating": "Dating review",
+    }
+    return labels.get(crumb, "Site review")
+
+
+def kicker_for(path: Path, title: str, text: str = "") -> str:
     slug = path.parent.name
     rel = path.parent.relative_to(ROOT).as_posix()
     if slug.endswith("-review"):
-        return "Review · 2026"
+        return f"{review_topic(text)} · 2026"
     if "uk" in slug and feetish(slug, title):
         label = "UK seller guide"
     elif feetish(slug, title):
@@ -462,7 +493,23 @@ def stat_label(number: str, caption: str) -> str:
 
 
 def side_html(text: str, slug: str, title: str) -> str:
-    if slug.endswith("-review"):
+    review = slug.endswith("-review")
+    heads = headings(text)
+    # Reviews follow the guide cover: a numbered list when the post has sections.
+    if review and len(heads) >= 3:
+        lines = []
+        for head in heads[:4]:
+            line = fit(head, 28)
+            while line and cut_off(line):
+                line = " ".join(line.split()[:-1])
+            if line:
+                lines.append(line)
+        items = "".join(
+            f"<li><b>{index:02d}</b><span>{show(line)}</span></li>"
+            for index, line in enumerate(lines, start=1)
+        )
+        return f'<aside class="card list"><p class="label">In this review</p><ol>{items}</ol></aside>'
+    if review:
         blob = fact_blob(text)
         fact = percent_fact(blob) or money_fact(blob) or score_fact(text)
     else:
@@ -558,11 +605,12 @@ def build_post(path: Path) -> dict:
     title = cover_title(title, review)
     lede = lede_of(text) or meta_desc(text)
     slug = path.parent.name
-    subtitle = one_line(lede, 70)
+    subtitle = short_line(lede, 42) if review else one_line(lede, 70)
     notes = takeaways(text) + glances(text)[1:]
     hook = ""
+    hook_limit = 58 if review else 78
     for note in notes:
-        line = one_line(note, 78)
+        line = short_line(note, hook_limit) if review else one_line(note, hook_limit)
         if len(line) >= 24 and line.lower() != subtitle.lower() and not cut_off(line):
             hook = line
             break
@@ -577,7 +625,7 @@ def build_post(path: Path) -> dict:
         "slug": slug,
         "title": title,
         "title_html": accent_title(title),
-        "kicker": kicker_for(path, title),
+        "kicker": kicker_for(path, title, text),
         "subtitle": subtitle,
         "chips": chips_for(text),
         "side": side_html(text, slug, title),
