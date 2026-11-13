@@ -378,21 +378,13 @@ def thumb_id(path: str) -> str:
 
 def make_thumbs(src: Path, stem: str) -> tuple[int, int]:
     image = Image.open(src).convert("RGB")
-    width, height = image.size
-    target = 16 / 10
-    if width / height > target:
-        cropped = int(height * target)
-        # Keep the title side. These covers put the headline on the left.
-        image = image.crop((0, 0, cropped, height))
-    else:
-        cropped = int(width / target)
-        top = max(0, (height - cropped) // 2)
-        image = image.crop((0, top, width, top + cropped))
+    # Same 1200:630 frame as the cover. Do not crop the stat card off the right.
     sizes = {}
     for edge in (480, 800):
-        frame = image.resize((edge, edge * 10 // 16), Image.Resampling.LANCZOS)
+        height = edge * 630 // 1200
+        frame = image.resize((edge, height), Image.Resampling.LANCZOS)
         best = None
-        for quality in (68, 60, 52, 44, 38, 32, 28, 24):
+        for quality in (68, 60, 52, 44, 38, 32, 28, 24, 20, 16):
             buffer = BytesIO()
             frame.save(buffer, format="WEBP", quality=quality, method=6)
             data = buffer.getvalue()
@@ -479,7 +471,7 @@ def render_card(meta: dict, href: str, image_mode: str, logo_mode: str = "lazy")
             + src480
             + " 480w, "
             + src800
-            + ' 800w" sizes="(max-width:640px) 92vw, (max-width:960px) 46vw, 340px" width="800" height="500" alt="" decoding="async"'
+            + ' 800w" sizes="(max-width:640px) 92vw, (max-width:960px) 46vw, 340px" width="1200" height="630" alt="" decoding="async"'
             + priority
             + loading
             + "></span>"

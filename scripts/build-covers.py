@@ -62,8 +62,27 @@ DATE = re.compile(
 )
 
 
+ENTITY = re.compile(r"&(?:#\d+|#x[0-9a-fA-F]+|[a-zA-Z]{2,8});")
+
+
+def plain(value: str) -> str:
+    """Undo one or more layers of HTML entities before the cover is escaped once."""
+    text = value
+    for _ in range(4):
+        nxt = html.unescape(text)
+        if nxt == text:
+            return text
+        text = nxt
+    return text
+
+
 def esc(value: str) -> str:
-    return html.escape(value, quote=True)
+    return html.escape(plain(value), quote=True)
+
+
+def show(value: str) -> str:
+    """Escape visible text, then draw £ in a face whose sterling is not an ampersand."""
+    return esc(value).replace("£", '<span class="cur">£</span>')
 
 
 def clean(text: str) -> str:
@@ -235,10 +254,10 @@ def accent_title(title: str) -> str:
     html_words = []
     for word in words:
         if word in chosen:
-            html_words.append(f"<em>{esc(word)}</em>")
+            html_words.append(f"<em>{show(word)}</em>")
             chosen.remove(word)
         else:
-            html_words.append(esc(word))
+            html_words.append(show(word))
     return " ".join(html_words)
 
 
@@ -396,13 +415,13 @@ def side_html(text: str, slug: str, title: str) -> str:
         size = 72 if len(number) <= 6 else 52 if len(number) <= 12 else 36
         return (
             f'<aside class="card stat"><p class="label">{esc(stat_label(number, caption))}</p>'
-            f'<p class="num" style="font-size:{size}px">{esc(number)}</p>'
-            f'<p class="cap">{esc(caption)}</p></aside>'
+            f'<p class="num" style="font-size:{size}px">{show(number)}</p>'
+            f'<p class="cap">{show(caption)}</p></aside>'
         )
     heads = headings(text)
     if len(heads) >= 3:
         items = "".join(
-            f"<li><b>{index:02d}</b><span>{esc(fit(head, 36))}</span></li>"
+            f"<li><b>{index:02d}</b><span>{show(fit(head, 36))}</span></li>"
             for index, head in enumerate(heads[:4], start=1)
         )
         return f'<aside class="card list"><p class="label">In this guide</p><ol>{items}</ol></aside>'
@@ -410,7 +429,7 @@ def side_html(text: str, slug: str, title: str) -> str:
 
 
 def cover_html(post: dict) -> str:
-    chips = "".join(f"<span><i></i>{esc(item)}</span>" for item in post["chips"])
+    chips = "".join(f"<span><i></i>{show(item)}</span>" for item in post["chips"])
     length = len(post["title"])
     size = 84 if length <= 28 else 76 if length <= 42 else 68
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
@@ -419,6 +438,7 @@ def cover_html(post: dict) -> str:
 *{{box-sizing:border-box;margin:0;padding:0}}
 html,body{{width:1200px;height:630px;overflow:hidden;background:#0c0914}}
 body,.kicker,h1,.sub,.chips span,.label,.num,.cap,.list li,.brand,.hook{{font-family:'Bricolage Grotesque',sans-serif}}
+span.cur{{font-family:'Liberation Sans',Arial,sans-serif;font-weight:700}}
 body{{color:#fff}}
 .cover{{width:1200px;height:630px;display:flex;flex-direction:column;position:relative;overflow:hidden;
   background:linear-gradient(165deg,#2a1848 0%, #160d28 42%, #0c0914 100%)}}
@@ -464,13 +484,13 @@ h1 em{{font-style:normal;color:#E9D5FF;box-shadow:inset 0 -7px 0 rgba(196,162,25
 .brand span{{color:#C4A2FF}}
 .hook{{color:#E7DFF6;font-size:20px;font-weight:550;text-align:right;max-width:680px}}
 </style></head><body><div class="cover"><div class="orb"></div><div class="orb b"></div><div class="stars"></div><div class="main"><div>
-<p class="kicker">{esc(post["kicker"])}</p>
+<p class="kicker">{show(post["kicker"])}</p>
 <h1>{post["title_html"]}</h1>
-<p class="sub">{esc(post["subtitle"])}</p>
+<p class="sub">{show(post["subtitle"])}</p>
 <div class="chips">{chips}</div>
 </div>{post["side"]}</div>
 <footer class="bar"><div class="brand">{LOGO}<div><b>Dark</b><span>-Ero</span></div></div>
-<p class="hook">{esc(post["hook"])}</p></footer></div></body></html>"""
+<p class="hook">{show(post["hook"])}</p></footer></div></body></html>"""
 
 
 def build_post(path: Path) -> dict:
@@ -543,6 +563,13 @@ def main() -> None:
     if "--only" in sys.argv:
         only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
     posts = [build_post(path) for path in targets()]
+    broken = []
+    for post in posts:
+        blob = " ".join([post["kicker"], post["title"], post["subtitle"], post["hook"], *post["chips"]])
+        if ENTITY.search(blob):
+            broken.append(post["slug"])
+    if broken:
+        raise SystemExit("broken entities: " + ", ".join(broken))
     if only:
         posts = [post for post in posts if post["slug"] in only or post["path"].parent.relative_to(ROOT).as_posix() in only]
     out_dir = Path("/opt/cursor/artifacts/covers")
