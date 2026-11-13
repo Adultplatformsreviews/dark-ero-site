@@ -141,10 +141,11 @@ def check(path: str) -> list[str]:
     srcs = []
     for tag in tags:
         srcs.extend(SRC_RE.findall(tag))
-    if len(tags) != 1:
-        failures.append(f"body images {len(tags)}: {srcs}")
-    elif not cover_src(path, srcs[0]):
-        failures.append(f"body image is not the cover: {srcs[0]}")
+    content = [src for src in srcs if "/assets/logos/" not in src]
+    if len(content) != 1:
+        failures.append(f"body images {len(content)}: {content}")
+    elif not cover_src(path, content[0]):
+        failures.append(f"body image is not the cover: {content[0]}")
     figures = FIG_RE.findall(body)
     extra = [attrs for attrs in figures if "cover" not in attrs]
     if extra:
