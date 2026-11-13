@@ -11,6 +11,7 @@ import base64
 import html
 import re
 import sys
+from io import BytesIO
 from pathlib import Path
 
 from PIL import Image
@@ -137,9 +138,10 @@ def targets() -> list[Path]:
             continue
         if parent == ROOT or parent.name in hubs and parent.parent == ROOT:
             continue
-        if parent.name.endswith("-review"):
-            continue
         rel = parent.relative_to(ROOT).as_posix()
+        if parent.name.endswith("-review") and parent.parent == ROOT:
+            found.append(path)
+            continue
         name = parent.name
         if (
             rel.startswith("blog/")
@@ -207,9 +209,22 @@ def feetish(slug: str, title: str) -> bool:
     return any(word in blob for word in ("feet", "foot", "panty", "panties", "fetishfinder"))
 
 
+def cover_title(title: str, review: bool) -> str:
+    """Keep a review title to the platform name so the cover does not clip."""
+    if not review:
+        return title
+    if ":" in title:
+        head = title.split(":", 1)[0].strip()
+        if 8 <= len(head) <= 42:
+            return head
+    return fit(title, 42)
+
+
 def kicker_for(path: Path, title: str) -> str:
     slug = path.parent.name
     rel = path.parent.relative_to(ROOT).as_posix()
+    if slug.endswith("-review"):
+        return "Review · 2026"
     if "uk" in slug and feetish(slug, title):
         label = "UK seller guide"
     elif feetish(slug, title):
@@ -353,8 +368,44 @@ def caption_beside(sentence: str, number: str) -> str:
     return fit(" ".join(words), 52)
 
 
+def fact_blob(text: str) -> str:
+    return clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text)]))
+
+
+PERCENT = re.compile(r"\b\d{1,3}(?:\.\d+)?\s?(?:%|percent)(?!\w)", re.I)
+
+
+def percent_fact(blob: str) -> tuple[str, str] | None:
+    match = PERCENT.search(blob)
+    if not match:
+        return None
+    number = re.sub(r"\s+", " ", match.group(0)).strip()
+    caption = caption_beside(sentence_with(blob, match), number)
+    if caption and not cut_off(caption):
+        return number, caption
+    return None
+
+
+def money_fact(blob: str) -> tuple[str, str] | None:
+    match = MONEY.search(blob)
+    if not match:
+        return None
+    number = re.sub(r"\s+", " ", match.group(0)).strip()
+    caption = caption_beside(sentence_with(blob, match), number)
+    if caption and not cut_off(caption):
+        return number, caption
+    return None
+
+
+def score_fact(text: str) -> tuple[str, str] | None:
+    match = re.search(r'"ratingValue"\s*:\s*"(\d+(?:\.\d+)?)"', text)
+    if not match:
+        return None
+    return match.group(1), "out of 10"
+
+
 def fact_for(text: str) -> tuple[str, str] | None:
-    blob = clean(" ".join(glances(text) + takeaways(text) + [lede_of(text), meta_desc(text)]))
+    blob = fact_blob(text)
     for pattern in (MONEY, DATE):
         match = pattern.search(blob)
         if not match:
@@ -395,6 +446,8 @@ def stat_label(number: str, caption: str) -> str:
     blob = f"{number} {caption}".lower()
     if "allowance" in blob or "hmrc" in blob or "trading income" in blob:
         return "Trading allowance"
+    if caption.strip().lower() == "out of 10":
+        return "Our score"
     if "million" in blob or "gross" in blob:
         return "Reported gross"
     if re.search(r"20\d{2}", number):
@@ -409,7 +462,11 @@ def stat_label(number: str, caption: str) -> str:
 
 
 def side_html(text: str, slug: str, title: str) -> str:
-    fact = fact_for(text)
+    if slug.endswith("-review"):
+        blob = fact_blob(text)
+        fact = percent_fact(blob) or money_fact(blob) or score_fact(text)
+    else:
+        fact = fact_for(text)
     if fact:
         number, caption = fact
         size = 72 if len(number) <= 6 else 52 if len(number) <= 12 else 36
@@ -424,7 +481,7 @@ def side_html(text: str, slug: str, title: str) -> str:
             f"<li><b>{index:02d}</b><span>{show(fit(head, 36))}</span></li>"
             for index, head in enumerate(heads[:4], start=1)
         )
-        return f'<aside class="card list"><p class="label">In this guide</p><ol>{items}</ol></aside>'
+        return f'<aside class="card list"><p class="label">{"In this review" if slug.endswith("-review") else "In this guide"}</p><ol>{items}</ol></aside>'
     return f'<aside class="card icon">{icon_for(slug, title)}</aside>'
 
 
@@ -497,6 +554,8 @@ def build_post(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     title = field(text, "h1") or path.parent.name.replace("-", " ").title()
     title = re.sub(r"\s*\|\s*Dark-Ero\s*$", "", title).strip()
+    review = path.parent.name.endswith("-review")
+    title = cover_title(title, review)
     lede = lede_of(text) or meta_desc(text)
     slug = path.parent.name
     subtitle = one_line(lede, 70)
@@ -508,7 +567,11 @@ def build_post(path: Path) -> dict:
             hook = line
             break
     if not hook:
-        hook = "Prices, rules and risks checked for this guide"
+        hook = (
+            "Fees, payouts and the rules checked for this review"
+            if slug.endswith("-review")
+            else "Prices, rules and risks checked for this guide"
+        )
     return {
         "path": path,
         "slug": slug,
@@ -542,6 +605,54 @@ def jpeg_bytes(page, html_text: str) -> bytes:
     return data
 
 
+def write_review_thumbs(src: Path, stem: str) -> None:
+    image = Image.open(src).convert("RGB")
+    dest_dir = ROOT / "assets" / "card-thumbs"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    for edge in (480, 800):
+        frame = image.resize((edge, edge * 630 // 1200), Image.Resampling.LANCZOS)
+        best = b""
+        for quality in (68, 60, 52, 44, 38, 32, 28, 24, 20, 16):
+            buffer = BytesIO()
+            frame.save(buffer, format="WEBP", quality=quality, method=6)
+            best = buffer.getvalue()
+            if len(best) <= 30 * 1024:
+                break
+        if len(best) > 30 * 1024:
+            raise SystemExit(f"{stem}-{edge}.webp is {len(best)} bytes")
+        (dest_dir / f"{stem}-{edge}.webp").write_bytes(best)
+
+
+FIG_RE = re.compile(r'<figure class="cover"><img src="cover\.jpg" alt="([^"]*)"></figure>')
+
+
+def patch_hero(path: Path, stem: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    src480 = f"/assets/card-thumbs/{stem}-480.webp"
+    src800 = f"/assets/card-thumbs/{stem}-800.webp"
+
+    def repl(match: re.Match) -> str:
+        alt = match.group(1)
+        return (
+            '<figure class="cover"><img src="'
+            + src800
+            + '" srcset="'
+            + src480
+            + " 480w, "
+            + src800
+            + ' 800w" sizes="(max-width:760px) 92vw, 760px" width="1200" height="630" alt="'
+            + alt
+            + '" decoding="async" fetchpriority="high"></figure>'
+        )
+
+    updated, count = FIG_RE.subn(repl, text, count=1)
+    if count != 1:
+        if src800 in text and 'fetchpriority="high"' in text:
+            return
+        raise SystemExit(f"hero cover not found in {path}")
+    path.write_text(updated, encoding="utf-8")
+
+
 def ensure_og(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     if 'property="og:image"' in text or "property='og:image'" in text:
@@ -560,6 +671,7 @@ def ensure_og(path: Path) -> None:
 def main() -> None:
     only = None
     write = "--write" in sys.argv
+    reviews_only = "--reviews" in sys.argv
     if "--only" in sys.argv:
         only = set(sys.argv[sys.argv.index("--only") + 1].split(","))
     posts = [build_post(path) for path in targets()]
@@ -570,6 +682,8 @@ def main() -> None:
             broken.append(post["slug"])
     if broken:
         raise SystemExit("broken entities: " + ", ".join(broken))
+    if reviews_only:
+        posts = [post for post in posts if post["slug"].endswith("-review")]
     if only:
         posts = [post for post in posts if post["slug"] in only or post["path"].parent.relative_to(ROOT).as_posix() in only]
     out_dir = Path("/opt/cursor/artifacts/covers")
@@ -588,6 +702,9 @@ def main() -> None:
                 image = Image.open(dest)
                 if image.size != (1200, 630):
                     raise SystemExit(f"bad size {dest}")
+                if post["slug"].endswith("-review"):
+                    write_review_thumbs(dest, post["slug"])
+                    patch_hero(post["path"], post["slug"])
             print(f"{post['slug']:48} {len(data):6}  {post['kicker']}")
         browser.close()
     print(f"rendered {len(posts)}")

@@ -559,5 +559,6 @@ main .glance,section.takeaways{background:var(--card);color:var(--text);border:1
 main .glance::before,section.takeaways::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#c4a2ff,#6d28d9)}
 main .glance h2,section.takeaways h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#6d28d9;margin:0 0 8px;font-weight:800}
 
-.pg-hero .cover{margin:22px auto 0;max-width:760px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 16px 40px rgba(0,0,0,.28)}
-.pg-hero .cover img{width:100%;height:auto;display:block;max-height:460px;object-fit:cover;background:#1b1430}
+.pg-hero .cover{margin:22px auto 0;max-width:760px;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,.22);box-shadow:0 16px 40px rgba(0,0,0,.28);aspect-ratio:1200/630}
+.pg-hero .cover img{width:100%;height:auto;display:block;aspect-ratio:1200/630;object-fit:cover;background:#1b1430}
+@media(max-width:700px){.pg-hero .cover{max-width:200px}}

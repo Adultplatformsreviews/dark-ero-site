@@ -202,7 +202,9 @@ html[data-premium] .pg-hero .cover{
   border:1px solid rgba(255,255,255,.28);
   box-shadow:0 24px 50px rgba(0,0,0,.32), 0 0 0 1px rgba(255,255,255,.08);
 }
-html[data-premium] .pg-hero .cover img{max-height:460px}
+html[data-premium] .pg-hero .cover{aspect-ratio:1200/630}
+html[data-premium] .pg-hero .cover img{max-height:none;height:auto;aspect-ratio:1200/630;object-fit:cover}
+@media(max-width:700px){html[data-premium] .pg-hero .cover{max-width:200px}}
 
 /* Category header bar sits on the paper when the TPD grid is dressed. */
 html[data-premium] .tpd-cat .pg-hero{
