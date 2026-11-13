@@ -6,13 +6,13 @@
 .rv-year{display:block;margin-top:6px;color:#6d28d9;font-size:.62em;font-weight:700}
 .rv-year:after{content:"";display:block;width:64px;height:3px;margin-top:8px;border-radius:2px;background:#c4a15a}
 .rv-rest{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.rv-hero .lede{margin:14px 0 0;max-width:62ch;color:var(--muted,#5c5470);font-size:16.5px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.rv-hero .lede{margin:14px 0 0;max-width:62ch;color:var(--muted,#5c5470);font-size:16.5px;line-height:1.45}
 .rv-hero .lede strong{color:var(--text,#1b1430);font-weight:700}
 .rv-pill{display:inline-flex;margin:14px 0 0;padding:5px 10px;border-radius:999px;background:#f6f0ff;color:#5b21b6;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 .rv-updated{margin:8px 0 0;color:var(--dim,#8b849c);font-size:12.5px}
 .rv-brand{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
-.rv-logo{display:grid;place-items:center;width:92px;height:92px;border-radius:50%;background:#fff;border:1px solid #ece7f5;box-shadow:0 6px 16px rgba(42,24,72,.08);overflow:hidden}
-.rv-logo img{width:64px;height:64px;object-fit:contain}
+.rv-logo{display:grid;place-items:center;flex:none;box-sizing:border-box;width:96px;height:96px;padding:18px;border-radius:50%;background:#fff;border:1px solid #ece7f5;box-shadow:0 6px 16px rgba(42,24,72,.08);overflow:hidden}
+.rv-logo img{width:100%;height:100%;max-width:100%;object-fit:contain;object-position:center}
 .rv-mark{font-family:'Bricolage Grotesque',system-ui,sans-serif;font-weight:700;font-size:28px;color:#6d28d9}
 .rv-plat{margin:0;font-weight:700;font-size:15px}
 .rv-scoretag{margin:0;padding:4px 8px;border:1px solid #c4a15a;border-radius:999px;color:#8a6a1f;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
@@ -50,7 +50,6 @@
   .rv-main{order:4}
   .rv-toc{order:5}
   .rv-hero-card{grid-template-columns:1fr;padding:20px}
-  .rv-hero .lede{display:block;-webkit-line-clamp:unset;overflow:visible}
   .rv-brand{flex-direction:row;justify-content:flex-start;text-align:left}
   .rv-page .side-toc{display:none}
   .rv-page .m-toc{display:block}
