@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Save a 96x96 WebP icon for each review from the site's own domain.
+"""Save a sharp square WebP icon for each review from the site's own domain.
 
 Looks for an apple-touch icon, a favicon, then an og:image. Writes
 assets/logos/<review-slug>.webp under 5 KB. Prints slugs that stay
@@ -119,17 +119,29 @@ def candidates(domain: str) -> list[str]:
     return unique
 
 
-def to_webp(raw: bytes) -> bytes | None:
+def largest_frame(image: Image.Image) -> Image.Image:
+    best = image.copy()
+    frames = getattr(image, "n_frames", 1)
+    for index in range(frames):
+        image.seek(index)
+        if max(image.size) > max(best.size):
+            best = image.copy()
+    return best
+
+
+def to_webp(raw: bytes) -> tuple[bytes, int] | None:
     try:
-        image = Image.open(io.BytesIO(raw))
-        image.seek(0)
+        image = largest_frame(Image.open(io.BytesIO(raw)))
+        image.load()
     except Exception:
         return None
     if max(image.size) < 16:
         return None
     image = image.convert("RGBA")
     width, height = image.size
-    if width / height > 2.2 or height / width > 2.2:
+    ratio = width / height
+    # Share cards and banners are not logos. Keep nearly square marks only.
+    if ratio > 1.25 or ratio < 0.8:
         return None
     side = min(width, height)
     left = (width - side) // 2
@@ -137,30 +149,47 @@ def to_webp(raw: bytes) -> bytes | None:
     image = image.crop((left, top, left + side, top + side))
     background = Image.new("RGB", (side, side), (255, 255, 255))
     background.paste(image, mask=image.split()[-1])
-    background = background.resize((96, 96), Image.Resampling.LANCZOS)
+    # A 3x phone needs about 180px for the mark inside the circle. Do not invent detail past 96.
+    target = min(256, side if side >= 96 else 96)
+    if target != side:
+        background = background.resize((target, target), Image.Resampling.LANCZOS)
     best = None
-    for quality in (80, 68, 56, 44, 34, 26, 18):
+    for quality in (82, 74, 66, 56, 46):
         buffer = io.BytesIO()
         background.save(buffer, format="WEBP", quality=quality, method=6)
         data = buffer.getvalue()
         best = data
-        if len(data) <= 5 * 1024:
-            return data
-    return best if best and len(best) <= 5 * 1024 else None
+        if len(data) <= 12 * 1024:
+            return data, side
+    if best and len(best) <= 18 * 1024:
+        return best, side
+    return None
 
 
 def one(slug: str, domain: str) -> tuple[str, str]:
+    best = None
+    best_side = 0
+    best_url = ""
     for url in candidates(domain):
         try:
             raw = fetch(url)
+            image = Image.open(io.BytesIO(raw))
+            image.seek(0)
         except Exception:
             continue
-        webp = to_webp(raw)
-        if not webp:
+        if min(image.size) < 16:
             continue
-        (OUT / f"{slug}.webp").write_bytes(webp)
-        return slug, f"ok {domain} {len(webp)} {url[:80]}"
-    return slug, f"FAIL {domain}"
+        converted = to_webp(raw)
+        if not converted:
+            continue
+        webp, side = converted
+        if side < best_side:
+            continue
+        best, best_side, best_url = webp, side, url
+    if not best:
+        return slug, f"FAIL {domain}"
+    (OUT / f"{slug}.webp").write_bytes(best)
+    return slug, f"ok {domain} {best_side}px {len(best)} {best_url[:80]}"
 
 
 def main() -> None:
