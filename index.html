@@ -522,6 +522,38 @@ details.faq>summary::after{display:none!important}
 .tpd-dir-head p{margin:0;color:var(--muted);font-size:14px}
 .tpd-empty{margin:8px 0 0;color:var(--muted)}
 .tpd-more-block{margin-top:8px;margin-bottom:36px}
+/* Homepage only. This block sits outside .container, so pin it to the
+   same measure as the directory columns and center the heading, intro,
+   and link cards. Other pages do not use main.dir-home. */
+main.dir-home > section.related-cats{
+  box-sizing:border-box;
+  width:min(100%, var(--maxw));
+  margin-left:auto;
+  margin-right:auto;
+  padding-left:var(--pad);
+  padding-right:var(--pad);
+  text-align:center;
+}
+main.dir-home > section.related-cats .section-head{
+  justify-content:center;
+  text-align:center;
+}
+main.dir-home > section.related-cats > p{
+  margin-left:auto;
+  margin-right:auto;
+  text-align:center;
+}
+main.dir-home > section.related-cats .panel-grid{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:6px;
+}
+main.dir-home > section.related-cats .panel-grid a{
+  flex:1 1 160px;
+  max-width:280px;
+  text-align:center;
+}
 </style><script>try{if(localStorage.getItem("de-theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}try{if(localStorage.getItem("de-age")==="ok")document.documentElement.setAttribute("data-age","ok")}catch(e){}(function(){var p=location.pathname;if(!p.endsWith("/"))p+="/";if(p!=="/"){document.documentElement.setAttribute("data-route","sub");document.documentElement.setAttribute("data-premium","");if(!document.querySelector('link[href="/assets/premium.css"]')){var l=document.createElement("link");l.rel="stylesheet";l.href="/assets/premium.css";document.head.appendChild(l)}}})();</script>
 <style id="cat-guides">
 .vip-guides{margin:0 0 28px}
