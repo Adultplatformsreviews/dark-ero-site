@@ -1,6 +1,4 @@
 {
-  "trailingSlash": true,
-  "cleanUrls": true,
   "redirects": [
     {
       "source": "/(.*)",
@@ -20,6 +18,16 @@
     },
     {
       "source": "/(.*)/index.html",
+      "destination": "/$1/",
+      "permanent": true
+    },
+    {
+      "source": "/index",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/(.*)/index",
       "destination": "/$1/",
       "permanent": true
     },
@@ -44,9 +52,39 @@
       "permanent": true
     },
     {
+      "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/category/creators",
+      "destination": "/category/sell-feet-pics/",
+      "permanent": true
+    },
+    {
+      "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/category/creators/",
+      "destination": "/category/sell-feet-pics/",
+      "permanent": true
+    },
+    {
+      "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/:rest((?:[^/]+/)*[^/.]+)",
+      "destination": "/:rest/",
+      "statusCode": 301
+    },
+    {
+      "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/:rest((?:[^/]+/)*[^/.]+)/",
+      "destination": "/:rest/",
+      "statusCode": 301
+    },
+    {
       "source": "/:lang(es|pt|fr|de|ru|ja|ar|hi|ur|id|tr|it|nl|ko|zh|pl|vi|th|fil)/:path*",
       "destination": "/:path*",
       "permanent": true
+    },
+    {
+      "source": "/:file((?:[^/]+/)*[^/]+\\.[A-Za-z0-9]+)/",
+      "destination": "/:file",
+      "permanent": true
+    },
+    {
+      "source": "/:path((?:[^/]+/)*[^/.]+)",
+      "destination": "/:path/",
+      "statusCode": 301
     }
   ],
   "rewrites": [
