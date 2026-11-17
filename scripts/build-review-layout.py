@@ -3,11 +3,15 @@
 
 Article text is left in place. The script only adds the hero card, verdict
 sidebar and stylesheet. Scores come from the page's own ratingValue.
+
+It also inserts one mid-article call-to-action before the h2 nearest the
+middle of the article, so later review pages get the same button.
 """
 from __future__ import annotations
 
 import html
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -129,7 +133,157 @@ def glance_line(block: str) -> str:
     return clean(match.group(1)) if match else ""
 
 
+CTA_HREF = "https://auctionr.org/4/fa287f925fa1b4eacf25649067392482"
+CTA_HTML = (
+    '<div class="cta2 cta-actions">'
+    f'<a class="btn btn-primary" href="{CTA_HREF}" '
+    'target="_blank" rel="nofollow sponsored noopener">Explore Top Picks</a></div>'
+)
+VOID_TAGS = {
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+    "meta", "param", "source", "track", "wbr",
+}
+BLOCKED_PARENTS = {"p", "table", "thead", "tbody", "tfoot", "tr", "td", "th", "details"}
+
+
+class _ReviewArticle(HTMLParser):
+    """Locate the prose article and its top-level section headings."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=False)
+        self.stack: list[tuple[str, int, dict[str, str]]] = []
+        self.article_open: int | None = None
+        self.article_close: int | None = None
+        self.in_article = False
+        self.h2s: list[dict] = []
+        self.boundaries: list[int] = []
+        self._h2: dict | None = None
+        self._buf: list[str] = []
+
+    def _index(self) -> int:
+        line, col = self.getpos()
+        return self.line_offsets[line - 1] + col
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        index = self._index()
+        attr = {key: value or "" for key, value in attrs}
+        if tag == "article" and self.article_open is None and "prose" in attr.get("class", "").split():
+            self.in_article = True
+            self.article_open = index
+        if self.in_article and _is_boundary(tag, attr):
+            self.boundaries.append(index)
+        self.stack.append((tag, index, attr))
+        if tag == "h2" and self.in_article:
+            self._h2 = {
+                "start": index,
+                "id": attr.get("id", ""),
+                "text": "",
+                "parents": [(name, parent.get("class", ""), parent.get("id", "")) for name, _, parent in self.stack[:-1]],
+            }
+            self._buf = []
+        if tag in VOID_TAGS:
+            self.stack.pop()
+
+    def handle_endtag(self, tag: str) -> None:
+        index = self._index()
+        if tag == "h2" and self._h2 is not None:
+            self._h2["text"] = "".join(self._buf).strip()
+            self.h2s.append(self._h2)
+            self._h2 = None
+        if tag == "article" and self.in_article and self.stack and self.stack[-1][0] == "article":
+            self.article_close = index
+            self.in_article = False
+        if self.stack and self.stack[-1][0] == tag:
+            self.stack.pop()
+            return
+        for depth in range(len(self.stack) - 1, -1, -1):
+            if self.stack[depth][0] == tag:
+                del self.stack[depth:]
+                return
+
+    def handle_data(self, data: str) -> None:
+        if self._h2 is not None:
+            self._buf.append(data)
+
+
+def _is_boundary(tag: str, attr: dict[str, str]) -> bool:
+    ident = attr.get("id", "").lower()
+    classes = set(attr.get("class", "").lower().split())
+    if ident == "faq" or "faq" in classes or "faq-list" in classes:
+        return True
+    if ident.startswith("related-") or "related-cats" in classes:
+        return True
+    return False
+
+
+def _visible_len(fragment: str) -> int:
+    return len(re.sub(r"<[^>]*>", "", fragment))
+
+
+def _line_offsets(text: str) -> list[int]:
+    offsets = [0]
+    start = 0
+    while True:
+        found = text.find("\n", start)
+        if found < 0:
+            return offsets
+        offsets.append(found + 1)
+        start = found + 1
+
+
+def ensure_mid_cta(text: str) -> tuple[str, str]:
+    """Insert one themed CTA before the h2 nearest the middle of a review article.
+
+    The link sits between sections. It is never placed inside a paragraph,
+    table, or FAQ. Pages that already contain the link are left unchanged.
+    """
+    if CTA_HREF in text:
+        return text, "already present"
+    parser = _ReviewArticle()
+    parser.line_offsets = _line_offsets(text)
+    parser.feed(text)
+    if parser.article_open is None or parser.article_close is None:
+        return text, "skipped: no prose article"
+    open_end = text.find(">", parser.article_open)
+    if open_end < 0:
+        return text, "skipped: article tag did not close"
+    open_end += 1
+    content_end = parser.article_close
+    for boundary in parser.boundaries:
+        if open_end <= boundary < content_end:
+            content_end = boundary
+    eligible: list[tuple[int, dict]] = []
+    for heading in parser.h2s:
+        if heading["start"] < open_end or heading["start"] >= content_end:
+            continue
+        if heading["id"].lower() == "faq" or heading["text"].strip().lower() in {"faq"} or heading["text"].strip().lower().endswith(" faq"):
+            continue
+        parents = [name for name, _, _ in heading["parents"]]
+        if parents and parents[-1] != "article":
+            continue
+        if any(name in BLOCKED_PARENTS or name == "section" for name in parents):
+            continue
+        eligible.append((heading["start"], heading))
+    if len(eligible) < 2:
+        return text, "skipped: fewer than two section headings before the FAQ"
+    total = _visible_len(text[open_end:content_end])
+    if total <= 0:
+        return text, "skipped: article has no text before the FAQ"
+    midpoint = total / 2
+    ranked = sorted(eligible, key=lambda item: abs(_visible_len(text[open_end:item[0]]) - midpoint))
+    chosen = ranked[0]
+    if chosen[0] == eligible[0][0]:
+        chosen = next(item for item in ranked if item[0] != eligible[0][0])
+    heading = chosen[1]
+    offset = _visible_len(text[open_end:heading["start"]])
+    percent = round(100 * offset / total, 1)
+    snippet = CTA_HTML + "\n"
+    updated = text[: heading["start"]] + snippet + text[heading["start"] :]
+    return updated, f"placed before #{heading['id'] or heading['text']} at {percent}%"
+
+
 def transform(text: str, slug: str) -> str:
+    text, _info = ensure_mid_cta(text)
     if 'class="rv-page"' in text:
         return text
     hero = HERO_RE.search(text)
@@ -212,14 +366,25 @@ def transform(text: str, slug: str) -> str:
 
 def main() -> None:
     done = 0
+    placed = 0
+    skipped: list[str] = []
     for path in sorted(ROOT.glob("*-review/index.html")):
+        slug = path.parent.name
         original = path.read_text(encoding="utf-8")
-        updated = transform(original, path.parent.name)
+        updated, info = ensure_mid_cta(original)
+        if 'class="rv-page"' not in updated:
+            updated = transform(updated, slug)
         if updated != original:
             path.write_text(updated, encoding="utf-8")
             done += 1
-        print(path.parent.name)
-    print(f"updated {done}")
+        if info.startswith("placed") or info == "already present":
+            placed += 1
+        else:
+            skipped.append(f"{slug}: {info}")
+        print(f"{slug}: {info}")
+    print(f"updated {done}; with button {placed}; skipped {len(skipped)}")
+    for line in skipped:
+        print(line)
 
 
 if __name__ == "__main__":
