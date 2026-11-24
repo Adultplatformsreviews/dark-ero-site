@@ -25,6 +25,7 @@ UA = "Mozilla/5.0 (compatible; DarkEroLogoBot/1.0; +https://www.dark-ero.store/)
 DOMAINS = {
     "ablx-review": "ablx.app",
     "adult-friend-finder-review": "adultfriendfinder.com",
+    "affiny-ai-review": "www.affiny.ai",
     "ai-angels-review": "aiangels.io",
     "ai-peeps-review": "aipeeps.com",
     "aismutwriter-review": "aismutwriter.com",
@@ -39,6 +40,7 @@ DOMAINS = {
     "chaturbate-review": "chaturbate.com",
     "crushon-ai-review": "crushon.ai",
     "dreamgf-ai-review": "dreamgf.ai",
+    "erolove-review": "erolove.ai",
     "fansly-review": "fansly.com",
     "fanvue-review": "fanvue.com",
     "fapello-review": "fapello.com",
